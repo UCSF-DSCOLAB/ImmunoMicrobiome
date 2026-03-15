@@ -1,0 +1,66 @@
+#### Data input/output related
+data_dir: ""     # The absolute path of directory containing input FCS files. This directory will be searched for FCS files recursively, therefore, user doesn't need to arrange the FCS files. User can restrict which FCS files to use using the file_name column of the file_metadata_csvfile file.
+out_dir: ""    # The absolute path of the output directory. This checkpoint RData files, plot files and SCAFFoLD input files will be stored in the out_dir
+## Marker metadata
+# Make a template marker metadata file specific to your dataset using make_marker_metadata_csv.R. Once done, open the file in Excel and edit the "used_for_analysis" column to indicate which markers should be used for UMAP/Clustering/SCAFFoLD map.
+# Include these columns in the marker metadata file (exact column names are important, order is not): 
+# 1) "channel_name": name of the channel associated wit the marker - must match the column names in @exprs of the FCS data object
+# 2) "marker_name": marker names
+# 3) "used_for_embedding": TRUE/FALSE indicating whether the marker should be used for dimensionality reduction.
+# 4) "used_for_clustering": TRUE/FALSE indicating whether the marker should be used for clustering.
+# 5) "used_for_scaffold": TRUE/FALSE indicating whether the marker should be used for SCAFFoLD map generation.
+# 6) additional metadata columns for the markers, e.g. activation or inhibition or exhaustion or proliferation status. Currently these columns are not used by the pipeline.
+marker_metadata_csvfile: "/path/to/marker_metadata.csv"    # Absolute path of the marker metadata csv file. Use _______ script to generate a marker metadata template file for your dataset.
+
+## File metadata
+# Include these columns in the file metadata file (exact column names are important, order is not):
+# 1) "file_name": FCS file name without the directory path. The names of the FCS files in this column will be used for the analysis.
+# 2) "donor_id": Identifier of the subject/animal associated with the FCS file
+# 3) "pool_id": Identifier of the pool/batch/plate this sample was included in
+# 4) additional metadata for the file, e.g. timepoint, treatment, etc.
+file_metadata_csvfile: "/path/to/file_metadata.csv"    # Absolute path of the file metadata csv file.
+
+gated_fcs_dir: ""  # Absolute path of the directory containing gated populations in FCS file format to be used for SCAFFoLD map generation.
+
+
+#### Setting a checkpoint code.
+# 0: Begin the analysis. Read, preprocess and transform the data.
+# 1: Data pre-processing done; Begin UMAP calculation.
+# 2: UMAP calculation done; Begin clustering.
+# 3: Clustering done; Begin generating various matrices
+# 4: Variou matrices are saved; Begin preparing for SCAFFoLD input files
+# 5: SCAFFoLD input files are produced; Begin generating SCAFFoLD map.
+# 6: SCAFFoLD map generation is done; Begin ...
+rerun_from_checkpoint: -1 # Use -1, if you want to resume the analysis from the "default" checkpoint step (if checkpoint_x.RData files don't exist in the out_dir (i.e. running the script for the first time), the default checkpoint code is 0; if checkpoint_x.RData files exist, the default checkpoint code is the value of CHECKPOINT variable in the latest checkpoint_x.RData file). If you want to rerun the analysis starting from a step other than the "default", set an appropriate value from the list of checkpoint codes above. The script will automatically determine if the data required for a rerun exists in checkpoint_x.RData files.
+
+
+#### Randomization seed
+seed: 123
+
+
+#### Data processing related
+arcsinh_cofactor: 5
+subsample: FALSE
+subsample_n: 4000
+exclude_controls: FALSE
+
+#### UMAP related
+n_neighbors: 15
+min_dist: 0.1
+spread: 0.1
+learning_rate: 0.5
+init: "random"
+
+
+#### Clustering related
+clustering_method: "flowsom" # flowsom or clara
+clara_params:
+        k: 20
+        metric: "euclidean"
+        samples: 50
+flowsom_params:
+        xdim: 6 # Yet to come: "6,7,8,9,10"  # xdim of grid. Could supply multiple xdims to test, separated by commans. The number of xdims must match the number of ydims
+        ydim: 6 # Yet to come: 6,7,8,9,10"  # ydim of grid. Could supply multiple ydims to test, separated by commans. The number of ydims must match the number of xdims
+        k: 6
+        meta_cluster: FALSE
+
