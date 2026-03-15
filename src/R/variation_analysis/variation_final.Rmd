@@ -1,0 +1,222 @@
+---
+title: "Variable features"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load packages, echo=FALSE}
+suppressMessages({
+  library(tidyverse)
+  library(pals) #colors
+  library(pheatmap)
+  library(ggpubr)
+})
+```
+
+
+```{r functions, echo=FALSE}
+
+# @description Plot distribution of levels of features for the selected features.
+# @param features: list of feature names to plot.
+# @param data: data.frame of normalized expression levels/frequencies with samples as rows and features a columns.
+# @param log: if the data is to be log normalized.
+# @param nrow, ncol: the configuration in which the histrogram plots should be arranged.
+# @param title: title of the plot.
+# @param xlim: a vector of two values indicating the range of X-axis. Default is NULL, meaning that the default range will be used for X-axis.
+make_hist_plots_new <- function( features, data = NULL, log=FALSE, nrow=3, ncol=2, title="", xlim=c(0,20) ) {
+  data = data.frame(data, check.names = F)
+  plotlist = list()
+  for(i in features ) {
+    df = data.frame( v=(data %>% pull(i) %>% as.numeric()) )
+    if(log)
+      df = df %>% log1p()
+    plotlist[[i]] = 
+      ggplot(
+        df,
+        aes(x=v)) + 
+      geom_histogram( bins=100 ) + 
+      theme_classic() + 
+      ggtitle(i) + xlab("Norm. Freq")
+    if(! is.null(xlim))
+      plotlist[[i]] = plotlist[[i]] + coord_cartesian(xlim = xlim)
+  }
+  
+  plots = ggarrange(plotlist = plotlist, nrow=nrow, ncol=ncol) 
+  annotate_figure(plots, top= text_grob(title))
+}
+
+
+
+# @description Calculates Coefficient of variance and normalized MAD for each column of the input data frame.
+# @param data: data.frame of normalized expression levels/frequencies with samples as rows and features a columns.
+# @return: the function returns a list of vectors of the indicated metrics of variability with names of vector values representing the feature names.
+calc_metrics <- function(data) {
+  # Calculate coefficient of variation for each feature
+  cov <-
+    apply(data, 2, function(x) var(x)/mean(x))
+  # Calculate normalized MAD for each feature
+  norm_mad <-
+    apply(data, 2, function(x) mad(x)/median(x))
+  # Calculate mean for each feature
+  mean <-
+    apply(data, 2, function(x) mean(x))
+  # Calculate normalized MAD for each feature
+  median <-
+    apply(data, 2, function(x) median(x))
+  mad <-
+    apply(data, 2, function(x) mad(x, constant = 1))
+  
+  
+  # Calculate Aitchison's distance matrix
+  x = data
+  x[x==0] = min(x[x!=0])/100   # aDist returns Inf values for the samples with one or more zero values, therefore changing the zero values by the smallest non-zero value divided by 100, so that it doesn't affect the sum of frequencies for the given sample by much. The Inf values are returned by cenLR call within aDist, which converts geometric mean of samples with at least one zero value to zero, which is then converted to log, hence Inf values.
+  ait_dist = robCompositions::aDist(x)
+  
+  # Non-metric MDS
+  mds = MASS::isoMDS(ait_dist)
+  
+  p = ggplot(mds$points %>% data.frame(), aes(x=X1, y=X2)) + 
+    geom_point() + 
+    theme_classic() +
+    xlab("MDS.x") + ylab("MDS.y") +
+    ggtitle("Non-metric MDS plot")
+  #p
+  # Fit a principal curve
+  library(princurve)
+  fit <- principal_curve(mds$points, )
+  
+  points = mds$points %>% data.frame() %>% mutate(group=1:nrow(.))
+  fit_points = fit$s %>% data.frame() %>% mutate(group=1:nrow(.))
+  projection = rbind(points, fit_points)
+  p = ggplot(points, aes(x=X1, y=X2)) + geom_point() + geom_line(data = fit_points) + geom_line(data = projection, aes(group=group)) + theme_classic()
+  print(p)
+  #plot(mds$points); lines(fit); whiskers(mds$points, fit$s, col = "gray")
+  
+  # Find clusters that are positively and negatively correlated with lambda
+  prin_curve_cor = as.vector( cor( fit$lambda, data, method = "spearman") ) %>% setNames(colnames(data))
+
+  
+  
+  return(list("cov" = cov, "norm_mad" = norm_mad, "mean" = mean, "median" = median, "prin_curve_cor" = prin_curve_cor, "mad" = mad))
+}
+
+
+
+# @description Makes two types of plots. First, boxplots depicting variability across samples for top and bottom 10 features based on the provided metric of variation. Second, histograms using make_hist_plots_new function for top and bottom 6 features. The expression levels/frequencies are normalized feature-wise for a direct comparisons between the features. 
+# @param data: data.frame of normalized expression levels/frequencies with samples as rows and features a columns.
+# @param metric_object: the metric object generated using calc_metrics
+# @param metric_name: name of the metric to use from metric_object
+# @param x_for_scatter: name of the metric from metric_object to be used as x axis in the scatter plot.
+# @param n_features: number of features to plot in the box plots.
+plot_variability_results <- function( data_wide, metric_object, metric_name, x_for_scatter, n_features = 10) {
+  if( is.null(metric_object[[ metric_name ]]) ) {
+    cat("Make sure ", metric_name, " exists in metric_object.")
+    return()
+  }
+  if( is.null(metric_object[[ x_for_scatter ]]) ) {
+    cat("Make sure ", x_for_scatter, " exists in metric_object.")
+    return()
+  }
+  var_metric = metric_object[[ metric_name ]]
+  x = metric_object[[ x_for_scatter ]]
+  # Compare metric and median
+  p1 = ggplot(data.frame(x=x, metric=var_metric), aes(log(x), log(var_metric))) + 
+    geom_point() + 
+    geom_smooth(method = "lm") + 
+    xlab(paste0("log(", x_for_scatter ,")")) +
+    ylab(paste0("log(", metric_name,")")) +
+    theme_classic()
+
+  # Perform a feature-wise normalization to enable direct comparison between features.
+  data_wide_featureNormed = (data_wide %>% as.matrix() %>%
+    prop.table(margin = 2) %>% 
+    data.frame(check.names = F) * 100)
+  
+  # Convert the wider format to a longer format
+  data_long_featureNormed = data_wide_featureNormed %>% 
+    rownames_to_column("sample") %>% 
+    pivot_longer(cols = -sample) %>% 
+    dplyr::rename( features = name ) %>% 
+    dplyr::mutate(features = factor( features, levels = names(sort(-var_metric)) ) )
+  
+  # Make a boxplot showing distribution of feature-wise normalized levels for the top and bottom features.
+  #n_features = 10
+  top_features = names(head(sort(-var_metric), n_features))
+  bottom_features = names(head(sort(var_metric), n_features))
+  p2 = data_long_featureNormed %>% 
+    filter( features %in% c(top_features, bottom_features) ) %>% 
+    mutate( side = ifelse( features %in% top_features, "top", "bottom" ) ) %>%
+    ggplot(aes(x=features, y=log1p(value), fill=side )) + 
+      geom_boxplot() + 
+      theme_classic() + 
+      theme(axis.text.x = element_text(angle=90)) + 
+      ylab("log(normed value)") + ggtitle(paste0("Top and bottom ", n_features, " features")) + scale_fill_manual(values = c("top"="red","bottom"="lightblue"))
+  
+  # Make histograms of top and bottom features.
+  hist_top = make_hist_plots_new(names(head(sort(-var_metric))), data_wide_featureNormed, title = "Top 6 clusters")
+  hist_bottom = make_hist_plots_new(names(head(sort(var_metric))), data_wide_featureNormed, title = "Bottom 6 clusters")
+  
+  ggarrange(p1, p2, hist_top, hist_bottom, nrow = 2, ncol = 2, labels = "AUTO") # ggarrange(hist_top, hist_bottom, nrow = 1, ncol=2, labels = c("B","C")), nrow = 2, ncol=1, heights = c(1.5,1), labels = "AUTO")
+  
+
+}
+
+
+
+```
+
+
+&nbsp;
+
+### Stool metabolomic data from UCD
+
+```{r metabolomics, echo=FALSE, fig.height=12}
+
+# Read the metabolomics data
+data = read.csv("../../computables/stool-untar-metabolomics/current/all_metabolites_ucd_norm_count.csv", row.names = 1)
+zeros = sum(data == 0)
+nonzero = sum(data != 0)
+zeros/(zeros+nonzero)*100
+
+# Format the data such that the frequencies are normalized for each file and the data is arranged in a dataframe where the samples are rows and features are columns.
+data_wide = data
+
+# Calculate CoV and normalized MAD for the CyTOF data
+metrics = calc_metrics( data_wide )
+
+
+
+# Make three plots: 1) a scatter plot of a variation metric vs mean/median; 2) a boxplot indicating spread of top and bottom features; and 3) histograms showing data for top and bottom 6 features.
+plot_variability_results(data_wide, metric_object = metrics, metric_name = "norm_mad", x_for_scatter = "median", n_features = 20)
+plot_variability_results(data_wide, metric_object = metrics, metric_name = "cov", x_for_scatter = "mean", n_features = 20)
+
+
+##### Make histogram of X number of features.
+# Number of top and bottom features to plot.
+n_features = 10
+# Size of the grid for printing the plots for n_features.
+nrow = 4
+ncol = 3
+# Set the metric to use
+metric_to_use = "norm_mad"
+
+# Normalize the data
+data_wide_featureNormed = (data_wide %>% as.matrix() %>%
+  prop.table(margin = 2) %>% 
+  data.frame(check.names = F) * 100)
+
+# Bottom N features
+make_hist_plots_new(names(head(sort(metrics[[metric_to_use]]), n_features)), data_wide_featureNormed, title = "Bottom 10 features", nrow = 4, ncol = 3)
+# Top N features
+make_hist_plots_new(names(head(sort(-metrics[[metric_to_use]]), n_features)), data_wide_featureNormed, title = "Top 10 features", nrow = 4, ncol = 3)
+
+
+
+```
+
+
+
