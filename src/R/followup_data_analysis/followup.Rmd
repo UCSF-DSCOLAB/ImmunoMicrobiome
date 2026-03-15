@@ -1,0 +1,1098 @@
+---
+title: "revision"
+author: "Ravi K. Patel; AI-aided"
+date: "2025-10-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "202008_.._XHLT2/data/revision_analysis/multiomic/")
+```
+
+
+```{r}
+
+library(tidyverse)
+library(uwot)
+library(circlize)
+```
+
+
+```{r load objects}
+
+load("processed_followup_data.RData", verbose = T) # Available on Zenodo
+
+obj = readRDS(file = "mofa_model_final_object_v1.rds") # Available on Zenodo
+sc_celltypes = readRDS("202008_.._XHLT2/data/integration/final_obj_files_20230105/sc_celltypes.rds")
+
+rna = readRDS("allgenes_pseudobulk_rna_followup.rds") # Available on Zenodo
+adt = readRDS("allgenes_pseudobulk_adt_followup.rds") # Available on Zenodo
+citeFreq = readRDS("../../scRNA_CITE/DB8-14/mapping_to_DB1-7/citeFreq.rds")
+
+```
+
+
+```{r prepare data}
+
+datasets$stoolSpecies$df = datasets$stoolSpecies$df_clr
+#datasets$ncMo = list(df = t(gex$ncMo))
+
+datasets$citeFreq = citeFreq
+
+datasets_simple = list()
+for(ds in names(datasets)) {
+  datasets_simple[[ds]] = datasets[[ds]]$df
+}
+
+```
+
+```{r functions}
+run_pca <- function(data, return_loadings=T, title="title", draw_plots = T) {
+
+  pca=prcomp(data)
+  pca_out=as.data.frame(pca$x)
+
+  percentVar = round((pca$sdev)^2 / sum(pca$sdev^2)*100) %>% setNames(colnames(pca_out))
+  p1 = ggplot(pca_out, aes(PC1, PC2)) + geom_point(size=2) +
+    xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+    ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+    #coord_fixed(ratio = 1) +
+    #ggtitle("Biogenic amine PCA") +
+    guides(colour = guide_legend(override.aes = list(shape = 15))) +
+    theme_minimal() +
+    ggtitle(title)
+
+  if(draw_plots) {
+    print(p1)
+    barplot(percentVar)
+  }
+
+  if(return_loadings)
+    return( list( "pca_out"=pca_out, "percentVar"=percentVar, plot = p1) )
+
+  if(! return_loadings)
+    return(NULL)
+
+}
+
+
+# Calculate gene signature scores using the MOFA weights and leading-edge features from the cross-sectional data
+calc_term_score <- function(ds_DF,
+                                        projection_coef_DF,
+                                        leading_edges,
+                                        sep = "/",
+                                        is_vector = FALSE,
+                                        secondary_weights = NULL # The secondary weights should be a numerical vector with same order as the leading_edges vector. Used only when is_vector is TRUE.
+                            ){
+  #leading_edges can be either "/" (sep) seperated or as a vector of features
+  if(!is_vector){
+    leading_edges = strsplit(leading_edges, sep)[[1]]
+    leading_edges = intersect(rownames(projection_coef_DF),leading_edges)
+  }
+  leading_edges = leading_edges[ leading_edges %in% colnames(ds_DF) ]
+  if(length(leading_edges)>0){
+    w =  abs(projection_coef_DF[leading_edges,1])
+    if(is_vector & ! is.null(secondary_weights) & length(w) == length(secondary_weights)) {
+      warning("Using the secondary weights.")
+      w = w * secondary_weights
+    }
+    x = as.matrix(ds_DF[,leading_edges])
+    z = x %*% matrix(w, nrow = length(w), ncol = 1)
+    z = as.data.frame(z) %>% `rownames<-`(rownames(ds_DF))
+  }else{
+    z = NULL
+  }
+  return(z)
+}
+
+
+```
+
+
+### How do the F3 score look for the follow-up cohort
+```{r}
+
+
+long_donors = intersect(
+  lapply(datasets, function(x){ str_extract(grep("AAE|ABE",rownames(x$df), value=T), "XHLT2-HS\\d+") } ) %>% unlist() %>% unique(), 
+  lapply(datasets, function(x){ str_extract(grep("BLE",rownames(x$df), value=T), "XHLT2-HS\\d+") } ) %>% unlist() %>% unique()
+  )
+cite_donors = intersect(
+  lapply(rna, function(x){ str_extract(grep("AAE|ABE",rownames(t(x)), value=T), "XHLT2-HS\\d+") } ) %>% unlist() %>% unique(), 
+  lapply(rna, function(x){ str_extract(grep("BLE",rownames(t(x)), value=T), "XHLT2-HS\\d+") } ) %>% unlist() %>% unique()
+  )
+
+scores = 
+rbind(
+  data.frame(
+    grp = "Follow-up cohort",
+    score = obj$factors.noOutl[long_donors ,factor]
+    ),
+  data.frame(
+    grp = "Follow-up cohort (CITE-seq-only)",
+    score = obj$factors.noOutl[cite_donors ,factor]
+    ),
+  data.frame(
+    grp = "All donors",
+    score = obj$factors.noOutl[ ,factor]
+    )
+  )
+
+p = ggplot(scores, aes(score, color=grp)) + geom_density() + theme_classic() + scale_color_manual(values=pals::kelly(22)[3:5]) + labs(x="IMCV factor score", y="Density" )
+
+pdf("f3Score_across_datasets.pdf", width=6, height=4)
+print(p)
+dev.off()
+
+
+```
+
+
+
+```{r select features for heatmap}
+
+acetate_pathways <- c(
+  "P124-PWY: Bifidobacterium shunt",
+  "LACTOSECAT-PWY: lactose and galactose degradation I",
+  "PWY-5100: pyruvate fermentation to acetate and lactate II",
+  "P41-PWY: pyruvate fermentation to acetate and (S)-lactate I",
+  "PWY0-42: 2-methylcitrate cycle I",
+  "PWY0-1277: 3-phenylpropanoate and 3-(3-hydroxyphenyl)propanoate degradation",
+  "PWY-5484: glycolysis II (from fructose 6-phosphate)",
+  "GLYCOLYSIS: glycolysis I (from glucose 6-phosphate)",
+  "ANAEROFRUCAT-PWY: homolactic fermentation",
+  "PWY-5464: superpathway of cytosolic glycolysis (plants), pyruvate dehydrogenase and TCA cycle"
+)
+
+polya_paths <- c(
+  "PWY0-1221: putrescine degradation II",
+  "POLYAMINSYN3-PWY: superpathway of polyamine biosynthesis II",
+  "ORNDEG-PWY: superpathway of ornithine degradation",
+  "PWY-6922: L-N&delta;-acetylornithine biosynthesis"
+)
+
+mamp_pathways <- c(
+  "KDO-NAGLIPASYN-PWY: superpathway of (Kdo)2-lipid A biosynthesis",
+  "PWY-7332: superpathway of UDP-N-acetylglucosamine-derived O-antigen building blocks biosynthesis",
+  "OANTIGEN-PWY: O-antigen building blocks biosynthesis (E. coli)",
+  "PWY0-1586: peptidoglycan maturation (meso-diaminopimelate containing)"
+)
+
+
+sel_paths <- c(acetate_pathways, polya_paths, mamp_pathways)
+sel_paths = intersect(sel_paths, colnames(datasets_simple$stoolPathAbu))
+
+########## METABOLITES ##########
+
+scfa_metabs <- c(
+  "2-Hydroxy-3-methylbutyric acid",
+  "2-aminobutyric acid",
+  "Butyric Acid",
+  "Propionic Acid",
+  "4-Acetylbutyric acid",
+  "indole-3-acetate"
+)
+
+polya_metabs <- c(
+  "putrescine",
+  "Cadaverine",
+  "Ornithine",
+  "N1-Acetylspermine",
+  "N8-Acetylspermidine",
+  "Agmatine"
+)
+
+ba_metabs <- c(
+  "chenodeoxycholic acid",
+  "cholic acid"
+)
+
+precursor_metabs <- c(
+  "inositol-4-monophosphate",
+  "Inositol",
+  "N-Methylglutamic acid",
+  "beta-glutamic acid",
+  "N-Acetylglutamic acid"
+)
+
+sel_metabs <- unique(c(scfa_metabs, polya_metabs, ba_metabs, precursor_metabs))
+sel_metabs = intersect(sel_metabs, colnames(datasets_simple$stoolMetab))
+
+
+# Species with high SCFA contribution
+scfa_sp <- c(
+  "k__Bacteria|p__Actinobacteria|c__Coriobacteriia|o__Coriobacteriales|f__Coriobacteriaceae|g__Collinsella|s__Collinsella_aerofaciens", #C. aerofaciens
+  "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__Bifidobacterium_adolescentis", #Bifido adolescentis
+  "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__Bifidobacterium_pseudocatenulatum", #Bifido pseudocatenulatum
+  "k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Rikenellaceae|g__Alistipes|s__Alistipes_putredinis" #Alistipes putredinis
+  )
+
+# Species with high polyamine biosynthesis contribution
+polya_sp <- c(
+  "k__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Enterobacterales|f__Enterobacteriaceae|g__Escherichia|s__Escherichia_coli", #E. coli
+  "k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Prevotellaceae|g__Prevotella|s__Prevotella_copri" #P. copri
+)
+
+
+# Species with high LPA biosynthesis contribution
+lpa_sp <- c(
+  "k__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Enterobacterales|f__Enterobacteriaceae|g__Escherichia|s__Escherichia_coli", #E. coli
+  "k__Bacteria|p__Actinobacteria|c__Coriobacteriia|o__Coriobacteriales|f__Coriobacteriaceae|g__Collinsella|s__Collinsella_aerofaciens", #C. aerofaciens
+  "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__Bifidobacterium_adolescentis", #Bifido adolescentis
+  "k__Bacteria|p__Proteobacteria|c__Gammaproteobacteria|o__Pasteurellales|f__Pasteurellaceae|g__Haemophilus|s__Haemophilus_parainfluenzae", #H. parainfluenzae
+  "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__Bifidobacterium_longum", #Bifido longum
+  "k__Bacteria|p__Bacteroidetes|c__Bacteroidia|o__Bacteroidales|f__Rikenellaceae|g__Alistipes|s__Alistipes_putredinis", #Alistipes putredinis
+  "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__Bifidobacterium_pseudocatenulatum" #Bifido pseudocatenulatum
+)
+
+
+# Species with high acetate biosynthesis contribution
+acetate_sp <- c(
+  "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__Bifidobacterium_pseudocatenulatum", #Bifido pseudocatenulatum
+  "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__Bifidobacterium_adolescentis", #Bifido adolescentis
+  "k__Bacteria|p__Actinobacteria|c__Coriobacteriia|o__Coriobacteriales|f__Coriobacteriaceae|g__Collinsella|s__Collinsella_aerofaciens", #C. aerofaciens
+  "k__Bacteria|p__Actinobacteria|c__Actinobacteria|o__Bifidobacteriales|f__Bifidobacteriaceae|g__Bifidobacterium|s__Bifidobacterium_longum" #Bifido longum
+)
+
+pathway_rel_species <- unique(c(scfa_sp, polya_sp, lpa_sp, acetate_sp)) %>% str_extract(., "s__.+")
+pathway_rel_species = intersect(pathway_rel_species, colnames(datasets_simple$stoolSpecies))
+
+
+```
+
+
+
+```{r Heatmaps}
+
+make_heatmaps <- function(my_datasets, final_feat_weights, factor="Factor3", return_matrices=FALSE, return_scatters=FALSE) {
+  plotlist = list()
+  plot_matrices = list()
+  plot_scatters = list()
+  for(ds in names(my_datasets)) {
+    
+    plot_scatters[[ds]] = list()
+      
+    df = my_datasets[[ds]]
+
+    signif_feat_in_long = final_feat_weights[[ds]]
+    
+    sub_df= df[,names(signif_feat_in_long), drop=F]
+    
+    rownames(sub_df) = str_extract(rownames(sub_df), "^[^-]+-[^-]+-.{1}")
+    
+    hs_ids_tmp = str_extract(rownames(sub_df), "^[^-]+-[^-]+")
+    smpl_pairs = ((hs_ids_tmp %>% table() %>% sort()) == 2) %>% which() %>% names()
+    
+    smpl_pair_idx = hs_ids_tmp %in% smpl_pairs
+    
+    sub_df = sub_df[smpl_pair_idx, , drop=F]
+  
+    ### Do not need to (should not?) multiply for Spearman's correlation and heatmaps
+    # Multiply the values by the feature weight weights in the factor
+    # sub_df = as.data.frame(t(t(sub_df) * signif_feat_in_long))
+    
+    hs_ids = str_extract(rownames(sub_df), "^[^-]+-[^-]+")
+    tp_ids = str_extract(rownames(sub_df), ".$")
+    tp_ids = ifelse(tp_ids == "B", "BL", "Last")
+    hs_ids_factorScore = obj$factors.noOutl[,factor][hs_ids]
+    hs_ids_u = unique(hs_ids)
+    hs_ids_u_factorScore = obj$factors.noOutl[,factor][hs_ids_u]
+    
+    cor_res = data.frame()
+    for(feat in colnames(sub_df)) {
+      tmp_df = data.frame( 
+        exp_b=sub_df[ paste0(hs_ids_u,"-B") ,feat],
+        exp_a=sub_df[ paste0(hs_ids_u,"-A") ,feat],
+        fs = hs_ids_u_factorScore
+        )
+      cor_tmp = cor.test(tmp_df$exp_b, tmp_df$exp_a, method = "spearman")
+      cor_res = rbind(cor_res, data.frame(rho=cor_tmp$estimate, pval=cor_tmp$p.value, row.names = feat))
+
+      pval = cor_tmp$p.value
+      rho = round(cor_tmp$estimate, digits=3)
+      title = paste0("feat:",ds, "#", feat,"\npval:", format.pval(pval, digits=3), "\nrho:", rho)
+      factor_scores = obj$factors.noOutl[,factor]
+      plot_scatters[[ds]][[feat]] = ggplot(tmp_df, aes(exp_b,exp_a)) + #,fill=fs)) + 
+      theme_classic() + 
+      stat_smooth(method = "lm", geom = "smooth") + 
+      geom_point(shape=21, size=2, alpha=0.7) + 
+      labs(title=title, x="First tp", y="Last tp") + 
+      #scale_fill_gradient2(
+      #  limits = range(factor_scores),              # fix range from -5 to 5
+      #  low = "blue", mid = "white", high = "red",
+      #  midpoint = 0
+      #) +
+      theme(plot.title = element_text(size = 8))
+    }
+    cor_res$lbl = ifelse(cor_res$pval < 0.05, "*", "")
+    cor_res$weight = signif_feat_in_long[rownames(cor_res)]
+    cor_res = arrange(cor_res, -weight)
+
+    # Define rug color mapping
+    min_w = floor(min(cor_res$weight)*10)/10
+    if(min_w >= 0)
+      min_w = -0.5
+    max_w = ceiling(max(cor_res$weight)*10)/10
+    if(max_w <= 0)
+      max_w = 0.5
+    row_rug_col_fun <- circlize::colorRamp2(
+      breaks = c(min_w, 0, max_w),             # numeric range
+      colors = c(pals::brewer.piyg(11)[11], "white", pals::brewer.piyg(11)[1])  # corresponding colors
+    )
+    
+    # Defining rug data
+    row_ha <- ComplexHeatmap::rowAnnotation(
+      weight = cor_res$weight,
+      col = list(weight = row_rug_col_fun),
+      annotation_legend_param = list(
+        title = "Feature weight",
+        at = c(min_w, 0, max_w),
+        labels = c(min_w, "0", max_w)
+      ),
+      width = unit(0.2, "in")
+    )
+
+    # Function for adding label inside heatmap cells
+    text_fun <- function(j, i, x, y, width, height, fill) {
+      grid::grid.text(
+        cor_res[,"lbl",drop=F][i, j],  # formatted value
+        x, y,
+        gp = grid::gpar(fontsize = 8, col = "black")
+      )
+    }
+    
+    heatmap_col_fun <- colorRamp2(
+      breaks = c(-1, 0, 1),               # value range
+      colors = c("blue", "white", "red")  # corresponding colors
+    )
+    #my_colors <- colorRampPalette(c("blue", "white", "red"))(100)
+    #breaks <- seq(-1, 1, length.out = 101)  # 100 intervals
+    #plotlist[[ds]] = pheatmap::pheatmap(cor_res[,"rho",drop=F], cluster_cols = F, cluster_rows = F, display_numbers = cor_res[,"lbl",drop=F], silent = T, color = my_colors, breaks = breaks, main = ds, annotation_row=row_rug, annotation_colors = ann_colors )
+    
+    plotlist[[ds]] = ComplexHeatmap::Heatmap(
+      cor_res[,"rho",drop=F],
+      col = heatmap_col_fun,
+      cell_fun = text_fun,              # add custom labels
+      right_annotation = row_ha,        # continuous row annotation
+      cluster_rows = FALSE,
+      cluster_columns = FALSE,
+      width = unit(0.4, "in")
+      #heatmap_legend_param = list(
+      #  title = "Value",
+      #  at = c(-5, 0, 10),
+      #  labels = c("-5", "0", "10")
+      #)
+    )
+    
+    
+    plot_matrices[[ds]] = rownames_to_column(cor_res,"feat")
+  }
+  
+  if(return_scatters) {
+    return(plot_scatters)
+  }
+  if(return_matrices) {
+    return(plot_matrices)
+  }
+  return(plotlist)
+}
+
+factor = "Factor3"
+
+# Collect the feature and their weights that are significantly associated with the factor and are also present in the longitudinal data.
+final_feat_weights_nonRNA = list()
+for(ds in names(datasets_simple)) {
+  df = datasets_simple[[ds]]
+  
+  signif_feat = obj$wOtherOmics_signif_features_afterCorr[[factor]][[ds]]
+  
+  # Signif features in longitudinal
+  signif_feat_in_long = signif_feat[names(signif_feat) %in% colnames(df)]
+  cat(ds, ": ", length(signif_feat_in_long), " (", round( length(signif_feat_in_long) / length(signif_feat), 4) * 100, "%)", "\n", sep = "")
+  
+  final_feat_weights_nonRNA[[ds]] = signif_feat_in_long
+}
+
+# final_feat_weights_nonRNA$stoolMetab = final_feat_weights_nonRNA$stoolMetab[names(final_feat_weights_nonRNA$stoolMetab) %in% sel_metabs]
+final_feat_weights_nonRNA$stoolMetab = obj$weights.noOutl$stoolMetab[,factor][sel_metabs]
+#final_feat_weights_nonRNA$stoolPathAbu = final_feat_weights_nonRNA$stoolPathAbu[names(final_feat_weights_nonRNA$stoolPathAbu) %in% sel_paths]
+final_feat_weights_nonRNA$stoolPathAbu= obj$weights.noOutl$stoolPathAbu[,factor][sel_paths]
+
+final_feat_weights_nonRNA$citeFreq = final_feat_weights_nonRNA$citeFreq[ setdiff(names(final_feat_weights_nonRNA$citeFreq), "cMo_T") ]
+
+plotlist_nonRNA = make_heatmaps(datasets_simple, final_feat_weights_nonRNA)
+
+
+###### Make heatmap for scRNA-seq data
+## Calculate gene signature scores
+eight_pathways = c("Chronic_IFN_sig_UISGF3", "mod_ifn_alpha_wo_inflam_resp", "mod_ifn_gamma_wo_inflam_resp", "Tonic_IFN_sig", "HALLMARK_TGF_BETA_SIGNALING", "HALLMARK_TNFA_SIGNALING_VIA_NFKB", "mod_inflammatory_resp") # Acute_IFN_sig_ISGF3
+
+signature_scores = list()
+enr_dirs = list()
+for(ctype in names(rna)[-1]) {
+  signature_scores[[ctype]] = data.frame()
+  enr_dirs[[ctype]] = c()
+  ds_DF = rna[[ctype]]
+  projection_coef_DF = obj$weights.noOutl[[ctype]][, factor, drop=F]
+  enr_res = obj$enrichment_results_mod_afterCorr_lizSignatures$enrichment_results_mod[[factor]][[ctype]]$combined
+  if(is.null(enr_res))
+    next
+  enr_res = rbind(
+    enr_res,
+    obj$enrichment_results_mod_afterCorr_withModSignatures$enrichment_results_mod_combined[[factor]][[ctype]]$combined %>% dplyr::filter(Description %in% eight_pathways)
+  )
+  enr_res = enr_res %>% dplyr::filter(Description %in% eight_pathways)
+  for(i in 1:nrow(enr_res)) {
+    path = enr_res$Description[i]
+    padj = enr_res$p.adj[i]
+    leading_edges = enr_res$core_enrichment[i]
+    NES = enr_res$NES[i]
+    if(padj < 0.1) {
+      enr_dirs[[ctype]] = c( enr_dirs[[ctype]], NES %>% setNames(path) )
+      scores = calc_term_score(t(ds_DF), projection_coef_DF, leading_edges, sep = "#") %>% setNames(path)
+      if(ncol(signature_scores[[ctype]]) == 0) {
+        signature_scores[[ctype]] = scores
+      } else {
+        signature_scores[[ctype]] = cbind(signature_scores[[ctype]], scores)
+      }
+    }
+  }
+}
+
+# Keep only those ctypes that have signature scores
+signature_scores = signature_scores[lapply(signature_scores, function(x) nrow(x) > 0) %>% unlist()]
+
+
+plotlist_RNA = make_heatmaps(signature_scores, enr_dirs)
+plot_scatters_RNA = make_heatmaps(signature_scores, enr_dirs, return_scatters = T)
+plot_matrices_RNA = make_heatmaps(signature_scores, enr_dirs, return_matrices = T)
+
+
+plot_mat = bind_rows(plot_matrices_RNA, .id="source") %>% dplyr::select(source, rho, feat) %>% pivot_wider(names_from = source, values_from = rho) %>% column_to_rownames("feat")
+plot_lbl = bind_rows(plot_matrices_RNA, .id="source") %>% dplyr::select(source, lbl, feat) %>% pivot_wider(names_from = source, values_from = lbl) %>% column_to_rownames("feat")
+plot_lbl[is.na(plot_lbl)] = ""
+
+#my_colors <- colorRampPalette(c("blue", "white", "red"))(100)
+#breaks <- seq(-1, 1, length.out = 101)  # 100 intervals
+# Function for adding label inside heatmap cells
+text_fun <- function(j, i, x, y, width, height, fill) {
+  grid::grid.text(
+    plot_lbl[i, j],  # formatted value
+    x, y,
+    gp = grid::gpar(fontsize = 8, col = "black")
+  )
+}
+
+heatmap_col_fun <- colorRamp2(
+  breaks = c(-1, 0, 1),               # value range
+  colors = c("blue", "white", "red")  # corresponding colors
+)
+
+plot_RNA = ComplexHeatmap::Heatmap(
+  plot_mat,
+  col = heatmap_col_fun,
+  cell_fun = text_fun,              # add custom labels
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  width = unit(0.2*ncol(plot_mat), "in"))
+#plot_RNA = pheatmap::pheatmap(plot_mat, display_numbers = plot_lbl, cluster_cols = F, cluster_rows = F, color = my_colors, breaks = breaks, silent = T)
+
+
+
+plotlist = append(plotlist_nonRNA, list("RNA"=plot_RNA))
+pdf("heatmap_stoolMetab_v1.pdf", width=5, height=4)
+plotlist$stoolMetab
+dev.off()
+
+pdf("heatmap_stoolSpecies_v1.pdf", width=8, height=4)
+plotlist$stoolSpecies
+dev.off()
+
+pdf("heatmap_stoolPathAbu_v1.pdf", width=10, height=4)
+plotlist$stoolPathAbu
+dev.off()
+
+pdf("heatmap_cytof_v1.pdf", width=6, height=5)
+plotlist$cytof
+dev.off()
+
+pdf("heatmap_plasmaOlink_v1.pdf", width=6, height=2)
+plotlist$plasmaOlink
+dev.off()
+
+pdf("heatmap_citeFreq_v1.pdf", width=5, height=4)
+plotlist$citeFreq
+dev.off()
+
+pdf("heatmap_rna_v1.pdf", width=11, height=3.7)
+plotlist$RNA
+dev.off()
+
+pdf("scatter_plots_of_CITE_geneSig_v1.pdf", width = 12, height=2) # width = 18
+for(ds in names(plot_scatters_RNA)) {
+  print(ggpubr::ggarrange(plotlist=plot_scatters_RNA[[ds]], nrow=1, ncol=7))
+}
+dev.off()
+
+
+```
+
+```{r scatter plot of signatures}
+
+factor = "Factor3"
+
+all_datasets_simple = append(datasets_simple, lapply(rna[-1], t))
+
+factor_scores = obj$factors.noOutl[,factor]
+
+plotlist = list()
+signature_scores = list()
+all_plot_dfs = list()
+#enr_dirs = list()
+for(ds in c(names(datasets_simple), sort(names(rna[-1])))) {
+  if(ds == "Unlabelled")
+    next
+  signature_scores[[ds]] = data.frame()
+  #enr_dirs[[ds]] = c()
+  ds_DF = all_datasets_simple[[ds]]
+  projection_coef_DF = obj$wOtherOmics_weights.noOutl[[ds]][, factor, drop=F]
+  signif_feat = obj$wOtherOmics_signif_features_afterCorr[[factor]][[ds]]
+  scores = calc_term_score(as.matrix(ds_DF), projection_coef_DF, names(signif_feat), is_vector = T)
+  signature_scores[[ds]] = scores
+  
+  rownames(scores) = str_extract(rownames(scores), "^[^-]+-[^-]+-.{1}")
+  
+  hs_ids_tmp = str_extract(rownames(scores), "^[^-]+-[^-]+")
+  smpl_pairs = ((hs_ids_tmp %>% table() %>% sort()) == 2) %>% which() %>% names()
+  
+  smpl_pair_idx = hs_ids_tmp %in% smpl_pairs
+  
+  scores = scores[smpl_pair_idx, , drop=F]
+  df = data.frame(
+    bl = scores[ paste0(smpl_pairs, "-B") ,], 
+    lt = scores[ paste0(smpl_pairs, "-A") ,], 
+    donor=smpl_pairs, 
+    fs=factor_scores[smpl_pairs])
+  all_plot_dfs[[ds]] = df
+  pval = cor.test(df[,"bl"], df[,"lt"], method='spearman')$p.value
+  rho = round(cor.test(df[,"bl"], df[,"lt"], method='spearman')$estimate, digits=3)
+  title = paste0("feat:",ds,"\npval:", format.pval(pval, digits=3), "\nrho:", rho)
+  plotlist[[ds]] = ggplot(df, aes(bl,lt)) + #,fill=fs)) + 
+    theme_classic() + 
+    stat_smooth(method = "lm", geom = "smooth") + 
+    geom_point(shape=21, size=2, alpha=0.7) + 
+    labs(title=title, x="First tp", y="Last tp") 
+    #scale_fill_gradient2(
+    #  limits = range(factor_scores),              # fix range from -5 to 5
+    #  low = "blue", mid = "white", high = "red",
+    #  midpoint = 0
+    #) 
+}
+
+
+pdf("scatter_plots_of_signatures_v1.pdf", width=12, height=12)
+ggpubr::ggarrange(plotlist = plotlist, nrow=5, ncol=6)
+dev.off()
+
+
+```
+
+
+### Association with demographics
+```{r Association with demographics}
+
+factors = paste0("Factor", c(1:15))
+features = c("demographicSurvey_genderMale","demographicSurvey_age")
+my_cors = data.frame()
+for(feat in features) {
+  for(f in factors) {
+    my_cor = cor.test(obj$factors.noOutl[,f], t(obj$wOtherOmics_dataset_list$demographic$group1)[,feat], use="pairwise.complete", method="spearman" )
+    my_cors = rbind(my_cors, data.frame(feat=feat, fac=f, pval=my_cor$p.value, rho=my_cor$estimate))
+  }
+}
+
+my_cors = group_by(my_cors, feat) %>% mutate(padj = p.adjust(pval, "BH")) %>% ungroup
+my_cors = mutate(my_cors, feat = ifelse( grepl("genderMale", feat), "sexMale", feat ))
+
+rhos = pivot_wider(my_cors[,c("feat","fac","rho")], names_from=fac, values_from=rho) %>% mutate(feat = gsub("demographicSurvey_","",feat)) %>% column_to_rownames("feat")
+stars = pivot_wider(mutate(my_cors, lbl=ifelse(padj < 0.1, "*", ""))[,c("feat","fac","lbl")], names_from=fac, values_from=lbl) %>% mutate(feat = gsub("demographicSurvey_","",feat)) %>% column_to_rownames("feat")
+
+
+text_fun <- function(j, i, x, y, width, height, fill) {
+  grid::grid.text(
+    stars[i, j],  # formatted value
+    x, y,
+    gp = grid::gpar(fontsize = 8, col = "black")
+  )
+}
+
+heatmap_col_fun <- circlize::colorRamp2(
+  breaks = c(-1, 0, 1),               # value range
+  colors = c("blue", "white", "red")  # corresponding colors
+)
+
+p = ComplexHeatmap::Heatmap(
+  rhos,
+  col = heatmap_col_fun,
+  cell_fun = text_fun,              # add custom labels
+  #right_annotation = row_ha,        # continuous row annotation
+  cluster_rows = FALSE,
+  cluster_columns = TRUE,
+  width = unit(0.4 * ncol(rhos), "in"),
+  height = unit(0.4 * nrow(rhos), "in"),
+  heatmap_legend_param = list(
+    title="Spearman's R"
+  )
+)
+
+
+pdf("association_with_demographics_v1.pdf", width=8, height=3)
+p
+dev.off()
+
+
+```
+
+
+### Biomarker in external datasets
+```{r biomarker: Tsang vccine data}
+
+ds = readRDS("202008_.._XHLT2/data/external/tsang_mule_immunity2024/cite_data/flu_single_cell_data_2023_11_05/data/avg_exp_batchCorrected_all_genes.rds")
+
+feat = "SIGLEC1"
+
+top_pct = 0.25
+ctype = "DC"
+
+df = ds[[ctype]] %>% as.data.frame() %>% select(contains("_d0")) %>% select(contains(c("high","low")))
+df = df[feat,] %>% t() %>% as.data.frame() %>%
+  rownames_to_column() %>%
+  mutate(grp=str_extract(rowname, "low|high|AS03"), exp=.[,2])
+
+feat_exp = as.vector(df$exp)
+
+top_idx = feat_exp >= quantile(feat_exp, 1-top_pct)
+bottom_idx = feat_exp <= quantile(feat_exp, top_pct)
+
+df$grp2[top_idx] = "top"
+df$grp2[bottom_idx] = "bottom"
+
+t = na.omit(df)
+fisher.test(table(t$grp, t$grp2))
+
+
+
+```
+
+
+
+```{r SLE data}
+
+# Comparing SLEDAI score between patients binned based on SIGLEC1 expression
+d = readRDS("202008_.._XHLT2/data/external/perez_yelab_lupus/avg_exp_batchCorrected_all_genes.rds")
+m = read.csv("202008_.._XHLT2/data/external/perez_yelab_lupus/from_sara_clues_time1all.csv")
+
+feat = "SIGLEC1"
+#top_pct = 0.25
+plotlist = list()
+for(ctype in names(d)) {
+  dd = d[[ctype]] %>% select(contains("Managed"))
+  
+  if(! feat %in% rownames(dd))
+    next
+  df = data.frame(
+      exp = as.numeric(dd[feat,]),
+      sledaiscore = m$sledaiscore[ match( str_extract(colnames(dd), "^[^#_]+"), m$subjectid ) ]
+  )
+  
+  feat_exp = as.vector(df$exp)
+  
+  #top_idx = feat_exp >= quantile(feat_exp, 1-top_pct)
+  #bottom_idx = feat_exp <= quantile(feat_exp, top_pct)
+  
+  #df$grp2[top_idx] = "top"
+  #df$grp2[bottom_idx] = "bottom"
+  df$grp2 = paste0("bin",ntile(df$exp, 4))
+  df = na.omit(df)
+  
+  # Keep only groups 1 and 5 after Joel request
+  df = df[ df$grp2 %in% c("bin1","bin4") , ]
+  
+  plotlist[[ctype]] = ggplot(df, aes(grp2, sledaiscore)) + 
+    geom_boxplot() + geom_jitter() + 
+    ggsignif::geom_signif(comparisons = list(c("bin1","bin4")), y_position = 15) + 
+    theme_classic() +
+    labs(y="SLEDAI", title=ctype, x=paste0("Binned exp ", feat))
+}
+
+pdf("clues_sledai_by_SIGLEC1Bins_v1.pdf", width = 6, height = 10)
+ggpubr::ggarrange(plotlist=plotlist)
+dev.off()
+
+pdf("clues_sledai_by_SIGLEC1Bins_v2.pdf", width = 6, height = 3)
+ggpubr::ggarrange(plotlist=plotlist[c("cM","ncM","cDC")], nrow=1, ncol=3)
+dev.off()
+
+
+
+```
+
+
+
+
+```{r overall viz UMAP/PCA}
+
+############## Compare between TPs using PCA/UMAP - F3 feature space ###############-------
+
+plotlist = list()
+
+factor = "Factor3"
+sub_dfs = list()
+all_datasets_simple = append(datasets_simple, lapply(rna[-1], t))
+donor_count = c()
+
+for(ds in names(all_datasets_simple)) {
+  plotlist[[ds]] = list()
+  
+  df = all_datasets_simple[[ds]]
+  
+  if(! ds %in% names(obj$wOtherOmics_signif_features_afterCorr[[factor]]) )
+    next
+  
+  signif_feat = obj$wOtherOmics_signif_features_afterCorr[[factor]][[ds]]
+  
+  # Signif features in longitudinal
+  signif_feat_in_long = signif_feat[names(signif_feat) %in% colnames(df)]
+  cat(ds, ":", length(signif_feat_in_long), " (", round( length(signif_feat_in_long) / length(signif_feat), 4) * 100, "%)", "\n", sep = "")
+
+  sub_df= df[,names(signif_feat_in_long), drop=F]
+  
+  rownames(sub_df) = str_extract(rownames(sub_df), "^[^-]+-[^-]+-.{1}")
+  
+  hs_ids_tmp = str_extract(rownames(sub_df), "^[^-]+-[^-]+")
+  smpl_pairs = ((hs_ids_tmp %>% table() %>% sort()) == 2) %>% which() %>% names()
+  
+  smpl_pair_idx = hs_ids_tmp %in% smpl_pairs
+  
+  sub_df = sub_df[smpl_pair_idx, , drop=F]
+  # Multiply the values by the feature weight weights in the factor
+  sub_df = as.data.frame(t(t(sub_df) * signif_feat_in_long))
+  
+  hs_ids = str_extract(rownames(sub_df), "^[^-]+-[^-]+")
+  tp_ids = str_extract(rownames(sub_df), ".$")
+  tp_ids = ifelse(tp_ids == "B", "BL", "Last")
+  hs_ids_factorScore = obj$factors.noOutl[,factor][hs_ids]
+  
+  donor_count = c(donor_count, length(unique(hs_ids)) %>% setNames(ds) )
+  
+  sub_dfs[[ds]] = sub_df
+  
+  if( ncol(sub_df) < 2 | nrow(sub_df) <= 10  )
+    next
+
+  
+  set.seed(1234)
+  umap_res = umap(sub_df)
+  
+  title = paste0(ds, ":", factor)
+  
+  umap_df = as.data.frame(umap_res) %>% setNames(c("UMAP1","UMAP2")) %>% mutate(grp=hs_ids, fs = hs_ids_factorScore, tp=tp_ids) 
+  #UMAP
+  plotlist[[ds]][["umap"]] = ggplot(umap_df, aes(UMAP1, UMAP2, group=grp, color=fs, shape=tp)) + 
+    geom_point() + geom_line() + 
+    theme_classic() + scale_color_distiller(palette = "RdBu") +
+    labs(title=title)
+  
+  
+  # PCA
+  pca = run_pca(sub_df, draw_plots = F)
+  pca_out = pca$pca_out %>% mutate(grp=hs_ids, fs=hs_ids_factorScore, tp=tp_ids )
+  percentVar = pca$percentVar
+  x=1; y=2;
+  plotlist[[ds]][["pca12"]] = ggplot(pca_out, aes_string(x=paste0("PC",x), y=paste0("PC",y), group="grp", color="fs", shape="tp")) +
+    geom_point(size=2) + geom_line() +
+    xlab(paste0("PC1: ",percentVar[x],"% variance")) +
+    ylab(paste0("PC2: ",percentVar[y],"% variance")) +
+    #guides(colour = guide_legend(override.aes = list(shape = 15))) +
+    theme_classic() + scale_color_distiller(palette = "RdBu") +
+    labs(title=title)
+  
+  x=3; y=4;
+  plotlist[[ds]][["pca34"]] = ggplot(pca_out, aes_string(x=paste0("PC",x), y=paste0("PC",y), group="grp", color="fs", shape="tp")) +
+    geom_point(size=2) + geom_line() +
+    xlab(paste0("PC1: ",percentVar[x],"% variance")) +
+    ylab(paste0("PC2: ",percentVar[y],"% variance")) +
+    #guides(colour = guide_legend(override.aes = list(shape = 15))) +
+    theme_classic() + scale_color_distiller(palette = "RdBu") +
+    labs(title=title)
+  
+  if( "PC6" %in% colnames(pca_out)) {
+    x=5; y=6;
+    plotlist[[ds]][["pca56"]] = ggplot(pca_out, aes_string(x=paste0("PC",x), y=paste0("PC",y), group="grp", color="fs", shape="tp")) +
+      geom_point(size=2) + geom_line() +
+      xlab(paste0("PC1: ",percentVar[x],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[y],"% variance")) +
+      #guides(colour = guide_legend(override.aes = list(shape = 15))) +
+      theme_classic() + scale_color_distiller(palette = "RdBu") +
+      labs(title=title)
+  }
+  
+  plotlist[[ds]] = list(comb=ggpubr::ggarrange(plotlist=plotlist[[ds]]))
+  
+  
+  donor_bin1 = names(head(sort(na.omit(obj$factors.noOutl[,factor])), round(length(na.omit(obj$factors.noOutl[,factor]))*0.2) ))
+  donor_bin5 = names(tail(sort(na.omit(obj$factors.noOutl[,factor])), round(length(na.omit(obj$factors.noOutl[,factor]))*0.2) ))
+  
+  dist_mat = dist(sub_df, method = "euclidean") %>% as.matrix()
+  # Make background distrib using all samples in both TP
+  hs_ids_u = unique(hs_ids)
+  dist_mat_bwTP = dist_mat[ paste0(hs_ids_u,"-B"), paste0(hs_ids_u,"-A") ]
+  bg_distrib = dist_mat_bwTP[ upper.tri(dist_mat_bwTP) ]
+  # Use only bin5 and bin1 donors for foreground
+  hs_ids_u = intersect(unique(hs_ids), c(donor_bin1, donor_bin5))# unique(hs_ids)
+  dist_mat_bwTP = dist_mat[ paste0(hs_ids_u,"-B"), paste0(hs_ids_u,"-A") ]
+  hs_ids_u_factorScore = obj$factors.noOutl[,factor][hs_ids_u]
+  hs_ids_u_order = names(sort(hs_ids_u_factorScore))
+  dist_plot_df = data.frame( hs = hs_ids_u, dist = diag(dist_mat_bwTP), fs = hs_ids_u_factorScore )
+  dist_plot_df = rbind(dist_plot_df, data.frame(hs="bg", dist=median(bg_distrib), fs = NA))
+  # Calc pvalue based on bg_distrib
+  dist_plot_df$pval = sapply(1:nrow(dist_plot_df), function(x) sum(bg_distrib < dist_plot_df$dist[x]) / length(bg_distrib) )
+  
+  dist_plot_df$hs = factor(dist_plot_df$hs, levels=c("bg",hs_ids_u_order))
+  
+  plotlist[[ds]][["dist"]] = ggplot(dist_plot_df %>% mutate(pval = ifelse(pval < 0.05, pval, NA)), aes(dist, hs, color=-log10(pval))) + geom_segment(aes(y = hs, yend = hs, x = 0, xend = dist), color="grey90", linewidth = 0.4) + geom_point(size=3) + theme_classic() + scale_color_distiller(palette = "Reds", direction = 1) + labs(title = title)
+    # ggplot(dist_plot_df %>% mutate(pval = ifelse(pval < 0.05, pval, NA)), aes(dist, hs, color=fs, size=-log10(pval))) + geom_segment(aes(y = hs, yend = hs, x = 0, xend = dist), color="grey90", linewidth = 0.4) + geom_point() + theme_classic() + scale_color_distiller(palette = "RdBu") + labs(title = title)
+  
+}
+
+ggpubr::ggarrange(plotlist=plotlist$plasmaOlink, ncol=2, nrow=1, widths = c(2,1))
+
+
+
+
+
+
+#### Gathering weighted feature levels for common samples and using them for UMAP calculation and distance calculation and plotting.
+
+cmn_smpls = c()
+for(ds in names(sub_dfs)) {
+    df = sub_dfs[[ds]]
+    if(nrow(df) < 32)
+        next
+    if(length(cmn_smpls) == 0)
+        cmn_smpls = rownames(df)
+    cmn_smpls = intersect(cmn_smpls, rownames(df))
+}
+final_df = data.frame()
+final_dss = c()
+for(ds in names(sub_dfs)) {
+    df = sub_dfs[[ds]]
+    df = df[rownames(df) %in% cmn_smpls, ,drop=F]
+    if(nrow(df) < length(cmn_smpls))
+        next
+    if(nrow(final_df) == 0)
+        final_df = df
+    final_df = cbind(final_df, df[cmn_smpls,])
+    final_dss = c(final_dss, ds)
+}
+print(final_dss)
+length(final_dss)
+
+
+### UMAP plots
+
+set.seed(1234)
+umap_res = umap(final_df, min_dist = 0.01)
+
+hs_ids = str_extract(cmn_smpls, "^[^-]+-[^-]+")
+tp_ids = str_extract(cmn_smpls, ".$")
+tp_ids = ifelse(tp_ids == "B", "BL", "Last")
+hs_ids_factorScore = obj$factors.noOutl[,factor][hs_ids]
+
+umap_df = as.data.frame(umap_res) %>% setNames(c("UMAP1","UMAP2")) %>% mutate(grp=hs_ids, fs = hs_ids_factorScore, tp=tp_ids) 
+#UMAP
+p = ggplot(umap_df, aes(UMAP1, UMAP2, group=grp, color=fs, shape=tp)) + 
+    geom_point(size=3) + geom_line() + 
+    theme_classic() + scale_color_distiller(palette = "RdBu") + coord_fixed()
+pdf("umap_all_f3_feats_v1.pdf", width=8, height=5)
+print(p)
+dev.off()
+
+### PCA plots
+
+pca = run_pca(final_df, draw_plots = F)
+pca_out = pca$pca_out %>% mutate(grp=hs_ids, fs=hs_ids_factorScore, tp=tp_ids )
+percentVar = pca$percentVar
+x=1; y=2;
+ggplot(pca_out, aes_string(x=paste0("PC",x), y=paste0("PC",y), group="grp", color="fs", shape="tp")) +
+    geom_point(size=2) + geom_line() +
+    xlab(paste0("PC1: ",percentVar[x],"% variance")) +
+    ylab(paste0("PC2: ",percentVar[y],"% variance")) +
+    #guides(colour = guide_legend(override.aes = list(shape = 15))) +
+    theme_classic() + scale_color_distiller(palette = "RdBu")
+
+x=3; y=4;
+ggplot(pca_out, aes_string(x=paste0("PC",x), y=paste0("PC",y), group="grp", color="fs", shape="tp")) +
+    geom_point(size=2) + geom_line() +
+    xlab(paste0("PC3: ",percentVar[x],"% variance")) +
+    ylab(paste0("PC4: ",percentVar[y],"% variance")) +
+    #guides(colour = guide_legend(override.aes = list(shape = 15))) +
+    theme_classic() + scale_color_distiller(palette = "RdBu")
+
+x=5; y=6;
+p = ggplot(pca_out, aes_string(x=paste0("PC",x), y=paste0("PC",y), group="grp", color="fs", shape="tp")) +
+    geom_point(size=2) + geom_line() +
+    xlab(paste0("PC5: ",percentVar[x],"% variance")) +
+    ylab(paste0("PC6: ",percentVar[y],"% variance")) +
+    #guides(colour = guide_legend(override.aes = list(shape = 15))) +
+    theme_classic() + scale_color_distiller(palette = "RdBu")
+print(p)
+
+
+
+### Distance plots
+
+dist_mat = dist(umap_df[,1:2], method = "euclidean") %>% as.matrix()
+# Make background distrib using all samples in both TP
+hs_ids_u = unique(umap_df$grp)
+dist_mat_bwTP = dist_mat[ paste0(hs_ids_u,"-B"), paste0(hs_ids_u,"-A") ]
+bg_distrib = dist_mat_bwTP[ upper.tri(dist_mat_bwTP) ]
+set.seed(1234)
+bg_distrib = sample(bg_distrib, 10000, replace = T)
+hs_ids_u_factorScore = obj$factors.noOutl[,factor][hs_ids_u]
+hs_ids_u_order = names(sort(hs_ids_u_factorScore))
+dist_plot_df = data.frame( hs = hs_ids_u, dist = diag(dist_mat_bwTP), fs = hs_ids_u_factorScore )
+#dist_plot_df = rbind(dist_plot_df, data.frame(hs="bg", dist=median(bg_distrib), fs = NA))
+# Calc pvalue based on bg_distrib
+dist_plot_df$pval = sapply(1:nrow(dist_plot_df), function(x) sum(bg_distrib < dist_plot_df$dist[x]) / length(bg_distrib) )
+dist_plot_df = mutate(dist_plot_df, pval=ifelse(pval == 0, 0.5/length(bg_distrib), pval))
+
+dist_plot_df$hs = factor(dist_plot_df$hs, levels=c("bg",hs_ids_u_order))
+
+ggplot(rbind( dist_plot_df %>% mutate(tp="last"), data.frame(hs=dist_plot_df$hs, dist=0, fs=dist_plot_df$fs, pval=dist_plot_df$pval, tp="bl")), aes(dist, hs, fill=fs)) + geom_segment(aes(y = hs, yend = hs, x = 0, xend = dist), color="grey60", linewidth = 0.4) + geom_point(aes(size=-log10(pval), shape=tp), color="black") + theme_classic() + scale_fill_distiller(palette = "RdBu", direction = -1) + scale_shape_manual(values=c("bl"=21,"last"=24)) + geom_vline(xintercept = c( mean(bg_distrib)-sd(bg_distrib), mean(bg_distrib), mean(bg_distrib)+sd(bg_distrib)), linetype=c(2,1,2), alpha=0.3 ) 
+
+
+
+```
+
+
+
+
+```{r}
+
+feats = c("SIGLEC-1" = "anti-human-CD169-(Sialoadhesin,-Siglec-1)-TotalSeqC", "CD69" = "anti-human-CD69-TotalSeqC")
+plot_scatters = list()
+cor_res = data.frame()
+
+for(feat_short in names(feats)) {
+  feat = feats[feat_short]
+  for(ds in intersect(sc_celltypes, names(adt)) ) {
+    d = adt[[ds]] %>% t()
+    smpls = str_extract(rownames(d), "XHLT2-HS\\d+-.")
+    rownames(d) = smpls
+    hs_ids = str_extract(smpls, "^[^-]+-[^-]+")
+    tp_ids = str_extract(smpls, ".$")
+    tp_ids = ifelse(tp_ids == "B", "BL", "Last")
+    
+    hs_ids_u = names(which(table(hs_ids) == 2))
+    hs_ids_u_factorScore = obj$factors.noOutl[,factor][hs_ids_u]
+  
+    tmp_df = data.frame(
+      exp_b = d[paste0(hs_ids_u, "-B"), feat],
+      exp_a = d[paste0(hs_ids_u, "-A"), feat]
+    )
+    cor_tmp = cor.test(tmp_df$exp_b, tmp_df$exp_a, method = "spearman")
+    cor_res = rbind(cor_res, data.frame(rho=cor_tmp$estimate, pval=cor_tmp$p.value, feat = feat_short, ctype=ds))
+    pval = cor_tmp$p.value
+    rho = round(cor_tmp$estimate, digits=3)
+    title = paste0("feat:",ds, "#", feat_short,"\npval:", format.pval(pval, digits=3), "\nrho:", rho)
+    plot_scatters[[ds]][[feat]] = ggplot(tmp_df, aes(exp_b,exp_a)) + #,fill=fs)) + 
+      theme_classic() + 
+      stat_smooth(method = "lm", geom = "smooth") + 
+      geom_point(shape=21, size=2, alpha=0.7) + 
+      labs(title=title, x="First tp", y="Last tp") + 
+      theme(plot.title = element_text(size = 8))
+  }
+}
+
+pdf("scatter_plots_of_ADTexp_v1.pdf", width = 4, height=2) # width = 18
+for(ds in names(plot_scatters)) {
+  print(ggpubr::ggarrange(plotlist=plot_scatters[[ds]], nrow=1, ncol=2))
+}
+dev.off()
+
+
+plot_mat = cor_res[, c("ctype","feat","rho")] %>% pivot_wider(names_from = ctype, values_from = rho) %>% column_to_rownames("feat")
+plot_lbl = cor_res[, c("ctype","feat","pval")] %>% mutate(pval = ifelse(pval < 0.05, "*","")) %>% pivot_wider(names_from = ctype, values_from = pval) %>% column_to_rownames("feat")
+
+
+text_fun <- function(j, i, x, y, width, height, fill) {
+  grid::grid.text(
+    plot_lbl[i, j],  # formatted value
+    x, y,
+    gp = grid::gpar(fontsize = 8, col = "black")
+  )
+}
+
+heatmap_col_fun <- colorRamp2(
+  breaks = c(-1, 0, 1),               # value range
+  colors = c("blue", "white", "red")  # corresponding colors
+)
+
+plot_ADT = ComplexHeatmap::Heatmap(
+  plot_mat,
+  col = heatmap_col_fun,
+  cell_fun = text_fun,              # add custom labels
+  cluster_rows = FALSE,
+  cluster_columns = TRUE,
+  width = unit(0.2*ncol(plot_mat), "in"),
+  height = unit(0.2*nrow(plot_mat), "in"))
+
+
+pdf("heatmap_adt_v1.pdf", width=11, height=3.7)
+plot_ADT
+dev.off()
+
+
+
+```
+
+
+
+
+```{r}
+
+weights = list()
+for(ds in names(obj$wOtherOmics_weights.noOutl)[-44]) {
+  signif_1 = names(obj$wOtherOmics_signif_features_afterCorr$Factor1[[ds]])
+  signif_3 = names(obj$wOtherOmics_signif_features_afterCorr$Factor3[[ds]])
+  weight_1 = obj$wOtherOmics_weights.noOutl[[ds]][,c(1)]
+  weight_3 = obj$wOtherOmics_weights.noOutl[[ds]][,c(3)]
+  feat = rownames(obj$wOtherOmics_weights.noOutl[[ds]])
+  ds2 = gsub("/","-",ds)
+  weights[[ds2]] = data.frame(
+    "feature"=feat,
+    "IIV_feature_weight"=weight_1, 
+    "IIV_signif_association"=ifelse(feat %in% signif_1, "yes","no"),
+    "IMCV_feature_weight"=weight_3, 
+    "IMCV_signif_association"=ifelse(feat %in% signif_3, "yes","no")
+    )
+}
+
+library(openxlsx)
+
+# Create workbook
+wb <- createWorkbook()
+
+# Add each data frame to a new sheet
+for (name in names(weights)) {
+  addWorksheet(wb, name)
+  writeData(wb, sheet = name, weights[[name]])
+}
+
+# Save workbook
+saveWorkbook(wb, "feature_weights.xlsx", overwrite = TRUE)
+
+```
+
