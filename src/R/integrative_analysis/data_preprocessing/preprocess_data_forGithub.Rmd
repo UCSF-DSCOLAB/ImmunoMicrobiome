@@ -685,10 +685,7 @@ ggpubr::ggarrange(plotlist = allplots, ncol=5, nrow=5)
 if(TRUE) {
     date = Sys.Date()
     if(!CLR){
-      save(datasets, assay_type, unmodnames, file=paste0("processed_data_allsamples_",date,".RData"))
-    }
-    if(CLR){
-      save(datasets, assay_type, unmodnames, file=paste0("processed_data_allsamples_cytofMicrobCLR_",date,".RData"))
+      save(datasets, assay_type, unmodnames, file=paste0("processed_baseline_data.RData"))
     }
 }
 
