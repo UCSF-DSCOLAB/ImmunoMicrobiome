@@ -1,0 +1,504 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+library(pheatmap)
+library(sva)
+
+CLR=FALSE
+```
+
+
+```{r functions}
+
+run_pca <- function(data, return_loadings=T, title="title") {
+
+  pca=prcomp(data)
+  pca_out=as.data.frame(pca$x)
+  
+  percentVar = round((pca$sdev)^2 / sum(pca$sdev^2)*100) %>% setNames(colnames(pca_out))
+  p1 = ggplot(pca_out, aes(PC1, PC2)) + geom_point(size=2) +
+    xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+    ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+    #coord_fixed(ratio = 1) +
+    #ggtitle("Biogenic amine PCA") +
+    guides(colour = guide_legend(override.aes = list(shape = 15))) +
+    theme_minimal() + 
+    ggtitle(title)
+  print(p1)
+
+  barplot(percentVar)
+  
+  if(return_loadings)
+    return( list( "pca_out"=pca_out, "percentVar"=percentVar, plot = p1) )
+  
+  if(! return_loadings)
+    return(NULL)
+
+}
+
+
+##### PVCA analysis
+#' @param mat: feature (row) x sample (column) data matrix
+#' @param batch: named vector or data frame indicating batch labels where names or rownames match the sample names
+#' @param meta: sample metadata, where the rownames match the sample names
+run_pvca <- function(mat, batch, meta, plot_title = "") {  
+  # step 1: load required packages
+  library(package = "pvca") # devtools::install_github("dleelab/pvca")
+  VarCorr <- lme4::VarCorr
+  
+  if(! is.data.frame(batch)) {
+    batch = as.data.frame(batch) %>% setNames("batch")
+  }
+  
+  # Match samples
+  cmn = intersect(intersect(colnames(mat), rownames(meta)), rownames(batch))
+  mat = mat[,cmn]
+  meta = meta[cmn,]
+  batch = batch[cmn,]
+  
+  # step 2: specify which assay is going to be used as input
+  pvca_input_matrix <- mat
+  if (sum(is.na(pvca_input_matrix)) > 0) {
+    stop("pvca input matrix should not have missing values")
+  }
+  
+  #meta = meta[colnames(mat),]
+  #meta = apply(meta, 2, function(x){ if(is.numeric(x)){ x[is.na(x)] = 999; x } else { x[is.na(x)] = "NA"; x }  }) %>% as.data.frame()
+  pvca_input_phenodata = data.frame(age = meta$demographicSurvey_age,
+                         sex = ifelse( meta$demographicSurvey_genderFemale > meta$demographicSurvey_genderMale, "F", "M"),
+                         row.names = colnames(mat))
+  pvca_input_phenodata = cbind(batch, pvca_input_phenodata)
+  
+  # step 5: run PVCA
+  fit <- PVCA(counts    = pvca_input_matrix,
+              meta      = pvca_input_phenodata,
+              inter     = FALSE,
+              threshold = 0.6)
+  
+  # step 6: plot barplot with PVCA results
+  pvca_barplot_data <- data.frame(explained = as.vector(fit),
+                                  effect    = names(fit)) %>%
+    arrange(explained) %>%
+    mutate(effect = factor(effect, levels = effect))
+  
+  pvca_barplot <- ggplot(data    = pvca_barplot_data,
+                         mapping = aes(x = effect, y = explained)) +
+    geom_bar(stat = "identity") +
+    geom_text(aes(label = signif(explained, digits = 3)),
+              nudge_y   = 0.01,
+              size      = 3) +
+    labs(x = NULL, y = "Proportion of the variance explained") + 
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45,
+                                     vjust = 1,
+                                     hjust = 1)) +
+    ggtitle(plot_title)
+  print(pvca_barplot)
+}
+
+
+make_colab_id2 = function(tp, hs, biospec="STL1-MTB") {
+  arms = c("36"="B","64"="B","77"="B","34"="B","53"="B","58"="B","95"="B","26"="B","65"="B","103"="B","49"="B","8"="B","13"="B","39"="B","90"="B","43"="B","31"="B","62"="B","27"="B","25"="B","107"="B","101"="B","38"="B","19"="B","14"="B","3"="B","87"="B","74"="B","57"="B","54"="B","102"="B","15"="B","76"="B","111"="B","83"="B","91"="B","63"="B","98"="B","99"="B","200"="B","82"="B","6"="A","12"="A","68"="A","32"="A","86"="A","93"="A","75"="A","94"="A","22"="A","88"="A","10"="A","46"="A","47"="A","24"="A","48"="A","28"="A","16"="A","30"="A")
+  
+  df = data.frame(tp=tp, hs=hs)
+  df = df %>% mutate( 
+    tp_id = ifelse(tp == 1, "BLE1", paste0("A",arms[as.character(hs)],"E",tp) ),
+    bsp_id = paste0(biospec, ifelse(tp == 1, "2", "1")),
+    colab_id = paste0("XHLT2-HS",hs,"-", tp_id, bsp_id)
+    )
+  return(df$colab_id)
+}
+
+
+make_colab_id = function(tp, hs) {
+  arms = c("36"="B","64"="B","77"="B","34"="B","53"="B","58"="B","95"="B","26"="B","65"="B","103"="B","49"="B","8"="B","13"="B","39"="B","90"="B","43"="B","31"="B","62"="B","27"="B","25"="B","107"="B","101"="B","38"="B","19"="B","14"="B","3"="B","87"="B","74"="B","57"="B","54"="B","102"="B","15"="B","76"="B","111"="B","83"="B","91"="B","63"="B","98"="B","99"="B","200"="B","82"="B","6"="A","12"="A","68"="A","32"="A","86"="A","93"="A","75"="A","94"="A","22"="A","88"="A","10"="A","46"="A","47"="A","24"="A","48"="A","28"="A","16"="A","30"="A")
+  
+  df = data.frame(tp=tp, hs=hs)
+  df = df %>% mutate( 
+    tp_id = ifelse(tp == 1, "BLE1", paste0("A",arms[as.character(hs)],"E",tp) ),
+    colab_id = paste0("XHLT2-HS",hs,"-", tp_id)
+    )
+  return(df$colab_id)
+}
+
+
+
+```
+
+
+```{r stool metabolites}
+
+# Baseline #1
+stl_metab_all = read.csv("computables/stool-untar-metabolomics/current/all_metabolites_ucd_norm_count.csv", fileEncoding="UTF-8-BOM", check.names = F)
+
+row.names(stl_metab_all) = paste0(stl_metab_all$sample_id, "-MTB1")
+stl_metab_all = stl_metab_all %>%
+  mutate(sample_id = NULL)
+
+stl_metab_all = log(stl_metab_all+1, 10)
+
+
+
+
+# Baseline #2 and last timepoint
+
+pm = read.csv("metabolomics/stool_untargeted_UCD/longitudinal/primary_metabolites_mod.csv", fileEncoding="UTF-8-BOM", check.names = F, row.names = 1)
+
+ba = read.csv("metabolomics/stool_untargeted_UCD/longitudinal/biogenic_amines_mod.csv", fileEncoding="UTF-8-BOM", check.names = F, row.names = 1)
+
+intersect(colnames(pm), colnames(ba))
+
+# pm and ba have one metabolite with the exact same name (including case), that is "Dopamine", which has lowest PoolCV (coeff of variation for pools) in ba (0.043707; calculated manually) than pm (0.075604123). Therefore selecting Dopamine from ba.
+# There are also about 80 metabolites with matching In Chi key, but their names do not have an exact match between pm and ba. But I am keeping them, because I do not know which version of the name was picked for the data used in MOFA. Keeping those extra in the final table should be fine for the post-hoc analysis. But if the goal is to do integrative analysis including the longitudinal samples, deduplication must be done for all those metabolites.
+
+pm$Dopamine = NULL
+
+stl_metab_all_2 = merge(pm, ba, by="row.names")
+stl_metab_all_2$Row.names = gsub("IMucsf_","", stl_metab_all_2$Row.names)
+
+tp = str_extract(stl_metab_all_2$Row.names, "^\\d+")
+hs = str_extract(stl_metab_all_2$Row.names, "\\d+$") %>% as.numeric()
+
+# Make colab ids
+stl_metab_all_2$Row.names = make_colab_id2(tp, hs,biospec = "STL1-MTB")
+
+# Keep baseline and last timepoint samples
+stl_metab_all_2 = filter(stl_metab_all_2, grepl("BLE1|AAE6|ABE4", Row.names)) %>% column_to_rownames("Row.names")
+
+# There are a few missing data values in the input excel files from WCM. I am using half-min to impute them.
+stl_metab_all_2 = apply(stl_metab_all_2, 2, function(x) {
+    x[is.na(x)] = min(x, na.rm = T)/2; x
+  } ) %>% as.data.frame()
+
+
+stl_metab_all_2 = log(stl_metab_all_2+1, 10)
+
+```
+
+
+
+
+```{r stool microbiome}
+
+# Baseline #1
+stl_metag_species = read.csv("computables/stool-metagenomics/current/metaphlan3_species_norm_count.csv", fileEncoding="UTF-8-BOM")
+
+stl_metag_species = data.frame(sample_id = stl_metag_species$sample_id, prop.table(as.matrix(stl_metag_species[,-1]), margin = 1)*100)
+
+row.names(stl_metag_species) = paste0(stl_metag_species$sample_id, "-WMS1")
+stl_metag_species = stl_metag_species %>%
+  mutate(sample_id = NULL)
+
+# Remove species with zero values in all samples
+#stl_metag_species = stl_metag_species %>% select( which(colSums(.)>0) )
+# Keep species with non-zero values in more than 10 samples
+stl_metag_species = stl_metag_species %>% select( which(colSums(stl_metag_species > 0) > 10) )
+
+stl_metag_species = log(stl_metag_species+1, 10)
+
+
+
+# Baseline #2 and the last timepoint
+stl_metag_species_2 = read.csv("metagenomics/stool_microbiome/Longitudinal/processed/from_kelvin/metaphlan_merged_abu_bact_only_mod.csv", fileEncoding="UTF-8-BOM")
+
+# The baseline #2 sample names have "BLE1STL2-WMS1" tag. But, there are four samples that have "BLE1STL1-WMS1" tag. I am assuming the STL1 refers to reanalysis of the same tube that was used in Baseline #1. So I am removing these 4 samples, and change "BLE1STL2-WMS1" to "BLE1STL1-WMS2".
+stl_metag_species_2 = stl_metag_species_2[ grep("BLE1STL1|HS99|HS200", stl_metag_species_2$name, invert = T), ]
+
+tp = gsub("E|STL","", str_extract(stl_metag_species_2$name, "E\\d+STL") )
+hs = gsub("HS","", str_extract(stl_metag_species_2$name, "HS\\d+") )
+
+# Make colab ids
+stl_metag_species_2$name = make_colab_id2(tp, hs,biospec = "STL1-WMS")
+
+# Keep baseline and last timepoint samples
+stl_metag_species_2 = filter(stl_metag_species_2, grepl("BLE1|AAE6|ABE4", name)) %>% column_to_rownames("name")
+
+# Scale to 100%
+stl_metag_species_2 = (prop.table(as.matrix(stl_metag_species_2), margin = 1)*100) %>% as.data.frame()
+
+# Remove species with zero values in all samples
+#stl_metag_species_2 = stl_metag_species_2 %>% select( which(colSums(.)>0) )
+# Keep species with non-zero values in more than 10 samples
+stl_metag_species_2 = stl_metag_species_2 %>% select( which(colSums(stl_metag_species_2 > 0) > 10) )
+
+stl_metag_species_2 = log(stl_metag_species_2+1, 10)
+
+
+
+```
+
+
+
+
+```{r stool microbiome pathway abundance}
+
+# Baseline #1
+stl_pathway_abundance = read.csv("computables/stool-metagenomics/current/humann3_pathabundance_norm_count.csv", check.names = F)
+# Remove samples that were not part of the cohort.
+stl_pathway_abundance = stl_pathway_abundance[ grep("HS\\d", stl_pathway_abundance$sample_id), ]
+
+row.names(stl_pathway_abundance) = paste0(stl_pathway_abundance$sample_id, "-WMS1")
+stl_pathway_abundance = stl_pathway_abundance %>%
+  mutate(sample_id = NULL)
+
+# Keep pathways with non-zero values in more than 10 samples
+stl_pathway_abundance = stl_pathway_abundance %>% select( which(colSums(stl_pathway_abundance > 0) > 10) )
+
+
+stl_pathway_abundance = log(stl_pathway_abundance+1, 10)
+
+
+
+
+
+# Baseline #2 and the last timepoint
+stl_pathway_abundance_2 = read.csv("metagenomics/stool_microbiome/Longitudinal/processed/from_kelvin/pathways_unstrat_rpkg_full_mod.csv", check.names = F, row.names = 1) %>% rownames_to_column("name")
+
+# The baseline #2 sample names have "BLE1STL2-WMS1" tag. But, there are four samples that have "BLE1STL1-WMS1" tag. I am assuming the STL1 refers to reanalysis of the same tube that was used in Baseline #1. So I am removing these 4 samples, and change "BLE1STL2-WMS1" to "BLE1STL1-WMS2".
+stl_pathway_abundance_2 = stl_pathway_abundance_2[ grep("BLE1STL1|HS99|HS200", stl_pathway_abundance_2$name, invert = T), ]
+
+tp = gsub("E|STL","", str_extract(stl_pathway_abundance_2$name, "E\\d+STL") )
+hs = gsub("HS","", str_extract(stl_pathway_abundance_2$name, "HS\\d+") )
+
+# Make colab ids
+stl_pathway_abundance_2$name = make_colab_id2(tp, hs,biospec = "STL1-WMS")
+
+# Keep baseline and last timepoint samples
+stl_pathway_abundance_2 = filter(stl_pathway_abundance_2, grepl("BLE1|AAE6|ABE4", name)) %>% column_to_rownames("name")
+
+# Keep pathways with non-zero values in more than 10 samples
+stl_pathway_abundance_2 = stl_pathway_abundance_2 %>% select( which(colSums(stl_pathway_abundance_2 > 0) > 10) )
+
+
+stl_pathway_abundance_2 = log(stl_pathway_abundance_2+1, 10)
+
+
+
+```
+
+
+
+
+```{r cytof flowsom}
+
+# Baseline #1
+objs = load("cytof_data_analysis/subset_marker_2/cycombine/checkpoint_4.RData")
+annot = read.csv("cytof_data_analysis/subset_marker_2/cycombine/CyTOF_CyComb_Cluster_Annotation.csv")
+
+## Remove HS99
+file_by_cluster_freq = dplyr::filter(file_by_cluster_freq, ! grepl("HS99|HS1000", file_name) )
+
+# Using cluster-level freq after removing "trash" clusters.
+file_by_cluster_freq_norm_wide = file_by_cluster_freq %>% 
+    #dplyr::filter(cluster %in% valid_clusters) %>%
+    filter(!cluster %in% annot$cluster[annot$landmark == "trash"]) %>% 
+    mutate(cluster = paste0(cluster, ".", annot$landmark[match(cluster, annot$cluster)])  ) %>%
+    group_by(file_name) %>% mutate(Freq = Freq/sum(Freq)*100) %>%
+    pivot_wider(values_from = Freq, names_from = cluster) %>%
+    mutate(file_name = paste0( str_match(file_name, "XHLT2-HS\\d+"), "-BLE1PBMC1-CYM1") ) %>%
+    column_to_rownames("file_name")
+
+cytof_flowSOM = log10(file_by_cluster_freq_norm_wide + 1) %>% as.data.frame()
+
+
+# Baseline #2 and the last timepoint
+
+# Ran this on C4 to generate freq_wide that is compatible with cytof_flowSOM above.
+library(tidyverse)
+all_maps = readRDS("all_maps_1based.rds")
+# Get mapped cluster ids
+bl = read.csv(gzfile("bl_subset.csv.gz"))[,c(42), drop=F] %>% rownames_to_column("X")
+all_maps$clust = bl$cluster[ match(all_maps$ref_idx, bl$X) ]
+freq = table(all_maps$sid, all_maps$clust, useNA='ifany') %>% as.data.frame() %>% setNames(c("sid","clust","Freq"))
+
+annot = read.csv("202008_.._XHLT2/data/integration/data_files/cytof/CyTOF_CyComb_Cluster_Annotation.csv")
+
+freq_wide = freq %>%
+    filter(!clust %in% annot$cluster[annot$landmark == "trash"]) %>%
+    mutate(clust = paste0(clust, ".", annot$landmark[match(clust, annot$cluster)])  ) %>%
+    group_by(sid) %>% mutate(
+      Freq = Freq/sum(Freq)*100,
+      sid = make_colab_id2( str_extract(sid, "^\\d+"), as.numeric(str_extract(sid, "\\d+$")), "PBMC1-CYM")
+      ) %>%
+    dplyr::filter(clust != "NA.NA" & grepl("BLE1|AAE6|ABE4", sid)) %>%
+    pivot_wider(values_from = Freq, names_from = clust) %>%
+    column_to_rownames("sid")
+write.csv(freq_wide, "freq_wide_BLE1_AAE6_ABE4.csv")
+
+
+freq_wide = read.csv("cytof_data_analysis/Longitudinal/mario_mapping_largerRef/freq_wide_BLE1_AAE6_ABE4.csv", row.names = 1, check.names = F)
+cytof_flowSOM_2 = log10(freq_wide + 1) %>% as.data.frame()
+
+
+```
+
+
+
+```{r plasma olink}
+
+# Baseline #1
+plasmaOlink_sample_metadata = read.csv("computables/plasma-olink/current/plasma_olink_sample_metadata.csv", check.names = F)
+plasmaOlink_feat_metadata = read.csv("computables/plasma-olink/current/plasma_olink_feature_metadata.csv", check.names = F)
+data = read.csv("computables/plasma-olink/current/plasma_olink_norm_count.csv", check.names = F, row.names = 1)
+# Remove samples with failed QC (QC Warning)
+data = data[plasmaOlink_sample_metadata$`QC Warning` == "Pass",]
+# Remove HS99
+data = data[ !grepl("XHLT2-HS99",rownames(data)), ]
+plasmaOlink_sample_metadata = plasmaOlink_sample_metadata[ plasmaOlink_sample_metadata$donor_id != "XHLT2-HS99", ]
+# Remove features with more than 60% values below LOD
+data = data[,colSums(is.na(data)) <= nrow(data)*0.6]
+data = mutate_all(data, as.numeric)
+# Impute the values below LOD by half-min
+data = apply(data, 2, function(x) {x[is.na(x)] = ifelse(min(x, na.rm = T) < 0, min(x, na.rm = T)*2, min(x, na.rm = T)/2); x} ) %>% as.data.frame()
+rownames(data) = paste0(rownames(data), "-LNK1")
+
+plasmaOlink = data
+
+
+# Baseline #2 and the last timepoint
+data_2 = readxl::read_excel("olink/longitudinal/20230313/Q-05030_Combes_T96_INFI_IMucsf_NPX_wColabIds.xlsx")
+# Take the limit of detection values out
+lod = data_2[ nrow(data_2), 3:(ncol(data_2)-2)]
+data_2 = data_2[1:(nrow(data_2)-1),]
+# Remove samples with failed QC (QC Warning)
+data_2 = data_2[data_2$`QC Warning` == "Pass",]
+# Remove HS99
+data_2 = data_2[ !grepl("XHLT2-HS99", data_2$colabs_id), ]
+# Remove extra columns
+data_2$`Plate ID` = NULL
+data_2$`QC Warning` = NULL
+# First confirm that colabs_id (which I had generated earlier) is correctly formatted by comparing it to make_colab_id output. If the ids are correct, remove "Assay" and move colabs_id to rownames
+tmp = paste0(make_colab_id(gsub("IMucsf","",str_extract(data_2$Assay, "IMucsf\\d+")), as.numeric(str_extract(data_2$Assay, "\\d+$")) ), "PL1-LNK1") 
+if( all(data_2$colabs_id == tmp) ) {
+  data_2$Assay = NULL
+  data_2 = column_to_rownames(data_2, "colabs_id")
+}
+# Keep only baseline and the last timepoint
+data_2 = data_2[ grepl("BLE1|AAE6|ABE4", rownames(data_2)), ]
+
+# First covert all values below LOD to NA
+for(i in 1:ncol(data_2)) {
+  data_2[,i] = ifelse(data_2[,i] < as.numeric(lod[1,i]), NA, data_2[,i])
+}
+# Remove features with more than 60% values below LOD
+data_2 = data_2[,colSums(is.na(data_2)) <= nrow(data_2)*0.6]
+data_2 = mutate_all(data_2, as.numeric)
+# Impute the values below LOD by half-min (if the values are below zero the values are multiplied by 2)
+data_2 = apply(data_2, 2, function(x) {x[is.na(x)] = ifelse(min(x, na.rm = T) < 0, min(x, na.rm = T)*2, min(x, na.rm = T)/2); x} ) %>% as.data.frame()
+
+
+plasmaOlink_2 = data_2
+
+
+```
+
+
+
+
+```{r fig.width=10, fig.height=10}
+
+datasets = list(
+  "stoolMetab" = list("df"=stl_metab_all_2),
+  "stoolSpecies" = list("df"=stl_metag_species_2),
+  "stoolPathAbu" = list("df"=stl_pathway_abundance_2),
+  "cytof" = list("df"=cytof_flowSOM_2),
+  "plasmaOlink" = list("df"=plasmaOlink_2)
+)
+
+# Check if HS99 is excluded from all assays.
+hs99_counts = unlist(lapply(datasets, function(x) length(grep("HS99",row.names(x$df))) ))
+if(any(hs99_counts > 0)) {
+  print(hs99_counts)
+  stop("HS99 exists in at least one dataset, remove it first")
+}
+
+# Remove HS200 since that was not used in the main paper
+datasets = lapply(datasets, function(x) { x$df = x$df[ ! grepl("HS200", rownames(x$df)), ]; x  })
+
+assay_type = c(
+  "stoolMetab" = "metabolomics",
+  "stoolSpecies" = "metagenomics",
+  "stoolPathAbu" = "metagenomics",
+  "cytof" = "cytof",
+  "plasmaOlink" = "proteomics"
+)
+
+# Make sure there are no NA values
+lapply(datasets, function(x) sum(is.na(x$df))) %>% unlist
+
+
+
+
+#############################################
+#### Scale data
+#############################################
+ds_pareto = c("metabolomics")
+
+for(a in names(assay_type) ) {
+  datasets[[a]][["df_preScale"]] = datasets[[a]][["df"]]
+  datasets[[a]][["df_preScale_clr"]] = as.data.frame(compositions::clr( (10^datasets[[a]][["df"]])-1+0.00001  ))
+  # Calculate MAD and normalized MAD before scaling the data.
+  datasets[[a]][["mad"]] = apply(datasets[[a]][["df"]], 2, mad)
+  datasets[[a]][["mad.clr"]] = apply(datasets[[a]][["df_preScale_clr"]], 2, mad)
+  datasets[[a]][["norm.mad"]] = apply(datasets[[a]][["df"]], 2, function(x) mad(x)/median(x))
+  datasets[[a]][["var"]] = apply(datasets[[a]][["df"]], 2, var)
+  datasets[[a]][["cov"]] = apply(datasets[[a]][["df"]], 2, function(x) sd(x)/mean(x))
+  datasets[[a]][["cov.clr"]] = apply(datasets[[a]][["df_preScale_clr"]], 2, function(x) sd(x)/mean(x))
+  if(assay_type[a] %in% ds_pareto) { # Use pareto scaling
+    datasets[[a]][["df"]] = apply(datasets[[a]][["df"]], 2, function(x) {scale(x)*sqrt(sd(x))} ) %>% `rownames<-`(row.names(datasets[[a]][["df"]])) %>% as.data.frame()
+  } else { # Use regular scaling
+    datasets[[a]][["df"]] = apply(datasets[[a]][["df"]], 2, scale) %>% `rownames<-`(row.names(datasets[[a]][["df"]])) %>% as.data.frame()
+    datasets[[a]][["df_clr"]] = apply(datasets[[a]][["df_preScale_clr"]], 2, scale) %>% `rownames<-`(row.names(datasets[[a]][["df_preScale_clr"]])) %>% as.data.frame()
+  }
+}
+
+
+
+#############################################
+#### Add dataset PCs
+#############################################
+
+allplots = list()
+for(a in names(assay_type) ) {
+  tmp_df = datasets[[a]][["df"]]
+  if(a == "demographic") { # For demographics, I have manually added sex data for the missing 4 data points from the screening data. So the values for other demographic features is NA for those 4. Removing them here before running PCA.
+    tmp_df = tmp_df[ apply(datasets[[a]][["df"]], 1, function(x) sum(is.na(x)) == 0 ), ]
+  }
+  if(a == "health") { # For health, I have set lastPeriod value to NA for males, which doesn't allow PCA analysis. Hence, removing lastPeriod before running PCA.
+    tmp_df$healthSurvey_lastPeriod = NULL
+  }
+  pc_res = run_pca(tmp_df, return_loadings = T, title=a)
+  allplots[[a]] = pc_res$plot
+  datasets[[a]][["pcs"]] = pc_res$pca_out
+  datasets[[a]][["pcvar"]] = pc_res$percentVar
+  #assay_type = c(assay_type, c(assay_type[a])  %>% setNames(paste0(a, "_pcs")) )
+}
+
+ggpubr::ggarrange(plotlist = allplots, ncol=5, nrow=5)
+
+
+# Save the output.
+if(TRUE) {
+    date = Sys.Date()
+    if(!CLR){
+      save(datasets, assay_type, file=paste0("processed_data_bl-lastTPsamples_",date,".RData"))
+    }
+    if(CLR){
+      save(datasets, assay_type, file=paste0("processed_data_allsamples_cytofMicrobCLR_",date,".RData"))
+    }
+
+}
+
+```

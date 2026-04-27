@@ -1,0 +1,699 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+library(pheatmap)
+library(sva)
+
+CLR=FALSE
+```
+
+
+```{r functions}
+
+run_pca <- function(data, return_loadings=T, title="title") {
+
+  pca=prcomp(data)
+  pca_out=as.data.frame(pca$x)
+  
+  percentVar = round((pca$sdev)^2 / sum(pca$sdev^2)*100) %>% setNames(colnames(pca_out))
+  p1 = ggplot(pca_out, aes(PC1, PC2)) + geom_point(size=2) +
+    xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+    ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+    #coord_fixed(ratio = 1) +
+    #ggtitle("Biogenic amine PCA") +
+    guides(colour = guide_legend(override.aes = list(shape = 15))) +
+    theme_minimal() + 
+    ggtitle(title)
+  print(p1)
+
+  barplot(percentVar)
+  
+  if(return_loadings)
+    return( list( "pca_out"=pca_out, "percentVar"=percentVar, plot = p1) )
+  
+  if(! return_loadings)
+    return(NULL)
+
+}
+
+
+##### PVCA analysis
+#' @param mat: feature (row) x sample (column) data matrix
+#' @param batch: named vector or data frame indicating batch labels where names or rownames match the sample names
+#' @param meta: sample metadata, where the rownames match the sample names
+run_pvca <- function(mat, batch, meta, plot_title = "") {  
+  # step 1: load required packages
+  library(package = "pvca") # devtools::install_github("dleelab/pvca")
+  VarCorr <- lme4::VarCorr
+  
+  if(! is.data.frame(batch)) {
+    batch = as.data.frame(batch) %>% setNames("batch")
+  }
+  
+  # Match samples
+  cmn = intersect(intersect(colnames(mat), rownames(meta)), rownames(batch))
+  mat = mat[,cmn]
+  meta = meta[cmn,]
+  batch = batch[cmn,]
+  
+  # step 2: specify which assay is going to be used as input
+  pvca_input_matrix <- mat
+  if (sum(is.na(pvca_input_matrix)) > 0) {
+    stop("pvca input matrix should not have missing values")
+  }
+  
+  #meta = meta[colnames(mat),]
+  #meta = apply(meta, 2, function(x){ if(is.numeric(x)){ x[is.na(x)] = 999; x } else { x[is.na(x)] = "NA"; x }  }) %>% as.data.frame()
+  pvca_input_phenodata = data.frame(age = meta$demographicSurvey_age,
+                         sex = ifelse( meta$demographicSurvey_genderFemale > meta$demographicSurvey_genderMale, "F", "M"),
+                         row.names = colnames(mat))
+  pvca_input_phenodata = cbind(batch, pvca_input_phenodata)
+  
+  # step 5: run PVCA
+  fit <- PVCA(counts    = pvca_input_matrix,
+              meta      = pvca_input_phenodata,
+              inter     = FALSE,
+              threshold = 0.6)
+  
+  # step 6: plot barplot with PVCA results
+  pvca_barplot_data <- data.frame(explained = as.vector(fit),
+                                  effect    = names(fit)) %>%
+    arrange(explained) %>%
+    mutate(effect = factor(effect, levels = effect))
+  
+  pvca_barplot <- ggplot(data    = pvca_barplot_data,
+                         mapping = aes(x = effect, y = explained)) +
+    geom_bar(stat = "identity") +
+    geom_text(aes(label = signif(explained, digits = 3)),
+              nudge_y   = 0.01,
+              size      = 3) +
+    labs(x = NULL, y = "Proportion of the variance explained") + 
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45,
+                                     vjust = 1,
+                                     hjust = 1)) +
+    ggtitle(plot_title)
+  print(pvca_barplot)
+}
+
+
+```
+
+
+```{r stool metabolites}
+
+stl_metab_all = read.csv("computables/stool-untar-metabolomics/current/all_metabolites_ucd_norm_count.csv", fileEncoding="UTF-8-BOM")
+
+row.names(stl_metab_all) = gsub("-BLE1STL1", "", stl_metab_all$sample_id)
+stl_metab_all = stl_metab_all %>%
+  mutate(sample_id = NULL)
+
+
+stl_metab_all = log(stl_metab_all+1, 10) %>% setNames( paste0("smetabAll_",colnames(.)) )
+
+
+stl_metab_all_modnames = read.csv("computables/stool-untar-metabolomics/current/all_metabolites_ucd_norm_count.csv", fileEncoding="UTF-8-BOM", check.names = T)
+stl_metab_all_unmodnames = read.csv("computables/stool-untar-metabolomics/current/all_metabolites_ucd_norm_count.csv", fileEncoding="UTF-8-BOM", check.names = F)
+stl_metab_all_names = data.frame(modnames = names(stl_metab_all_modnames), unmodnames = names(stl_metab_all_unmodnames))
+
+
+```
+
+
+
+
+```{r stool microbiome}
+
+stl_metag_species = read.csv("computables/stool-metagenomics/current/metaphlan3_species_norm_count.csv", fileEncoding="UTF-8-BOM")
+
+stl_metag_species = data.frame(sample_id = stl_metag_species$sample_id, prop.table(as.matrix(stl_metag_species[,-1]), margin = 1)*100)
+#warning("Did you scale the data to 100% percent???")
+
+row.names(stl_metag_species) = gsub("-BLE1STL1", "", stl_metag_species$sample_id)
+stl_metag_species = stl_metag_species %>%
+  mutate(sample_id = NULL)
+
+# Remove species with zero values in all samples
+#stl_metag_species = stl_metag_species %>% select( which(colSums(.)>0) )
+# Keep species with non-zero values in more than 10 samples
+stl_metag_species = stl_metag_species %>% select( which(colSums(stl_metag_species > 0) > 10) )
+
+
+# log-transform data
+stl_metag_species = log(stl_metag_species+1, 10) %>% setNames( paste0("smicrobSPE_",colnames(.)) )
+
+
+
+```
+
+
+
+
+```{r stool microbiome pathway abundance}
+
+stl_pathway_abundance = read.csv("computables/stool-metagenomics/current/humann3_pathabundance_norm_count.csv")
+# Remove samples that were not part of the cohort.
+stl_pathway_abundance = stl_pathway_abundance[ grep("HS\\d", stl_pathway_abundance$sample_id), ]
+
+
+row.names(stl_pathway_abundance) = gsub("-BLE1STL1", "", stl_pathway_abundance$sample_id)
+stl_pathway_abundance = stl_pathway_abundance %>%
+  mutate(sample_id = NULL)
+
+# Keep pathways with non-zero values in more than 10 samples
+stl_pathway_abundance = stl_pathway_abundance %>% select( which(colSums(stl_pathway_abundance > 0) > 10) )
+
+
+stl_pathway_abundance = log(stl_pathway_abundance+1, 10) %>% setNames( paste0("smicrobPathAbu_",colnames(.)) )
+
+
+## Save unmodified feature names for conversion in MOFA model
+stl_pathway_abundance_modnames = read.csv("computables/stool-metagenomics/current/humann3_pathabundance_norm_count.csv", check.names = T, row.names = 1)
+stl_pathway_abundance_unmodnames = read.csv("computables/stool-metagenomics/current/humann3_pathabundance_norm_count.csv", check.names = F, row.names = 1)
+stl_pathway_abundance_names = data.frame(modnames = names(stl_pathway_abundance_modnames), unmodnames = names(stl_pathway_abundance_unmodnames))
+
+
+```
+
+
+
+```{r survey data}
+
+survey_file = "SurveyData/20230525_IM GeneralSurveyDonorData_reformattedHeightWeight_dedupedDonors_newVar_reforinUSAFor_colabIds_reformBirthCountryParentBirthCountry_reformLastPeriod_seeLog.csv"
+survey_raw = read.csv(survey_file, header = T, fileEncoding="UTF-8-BOM")[-1,]
+# Move HS99 data to HS109.
+survey_raw$colab_ids = gsub("XHLT2-HS99", "XHLT2-HS109", survey_raw$colab_ids)
+survey_raw$id = gsub("99", "109", survey_raw$id)
+
+#id_desc = read.csv(survey_file, header = T, fileEncoding="UTF-8-BOM")[1,]
+#id_desc = as.data.frame(t(id_desc), stringsAsFactors = F)
+
+
+
+vars = read.csv("SurveyData/variables3.csv", header=T)
+
+
+
+
+ordinal_coding = read_excel("SurveyData/preset_levels_ordinal_coding.xlsx")
+ordinal_coding = ordinal_coding %>% mutate_all(~ replace_na(.x, ""))
+
+# PCA analysis using coded-ordinal and continuous variables
+
+# Convert the ordinal answers to ordinal scores.
+ord_con_var_data <- sapply(
+  as.vector(vars$var[grep("o",vars$type)]),
+  function(x) {
+    level_code = ordinal_coding[ordinal_coding$var == x, ]
+    as.numeric(as.character(level_code[ match( as.vector(survey_raw[,x]), level_code$vals ),]$code_3))
+  }
+)
+
+
+rescale01 <- function(x) {
+  rng <- range(x, na.rm = TRUE)
+  (x - rng[1]) / (rng[2] - rng[1])
+}
+
+# Add continuous variables here
+continuous_vars = c("vegProp","nCigarette","inUSAFor","lastSleepHr","cardio","age","weight","height","lastPeriod")
+ord_con_var_data = cbind(ord_con_var_data, 
+                         survey_raw %>% 
+                           select(all_of(continuous_vars)) %>% 
+                           mutate_all(.funs = function(x) as.numeric(as.character(x)) ) %>% 
+                           mutate( deriv_bmi = weight*703/height/height)
+)
+row.names(ord_con_var_data) = paste0( "XHLT2-HS", survey_raw$id)
+
+# Add derived features.
+ord_con_var_data = ord_con_var_data %>%
+                           mutate( deriv_vegCooked = rescale01( vegPrep_cooked * vegProp ),
+                                   deriv_vegRaw = rescale01( vegPrep_raw * vegProp ),
+                                   deriv_soda = rescale01( drink_soda * drinkVol_soda ),
+                                   deriv_dietSoda = rescale01( drink_dietSoda * drinkVol_dietSoda ),
+                                   deriv_cafFreeSoda = rescale01( drink_cafFreeSoda * drinkVol_cafFreeSoda ),
+                                   deriv_coffee = rescale01( drink_coffee * drinkVol_coffee ),
+                                   deriv_tea = rescale01( drink_tea * drinkVol_tea ),
+                                   deriv_alcohol = rescale01( drink_alcohol * drinkVol_alcohol ),
+                                   deriv_milk = rescale01( drink_milk * drinkVol_milk ),
+                                   deriv_alcoholWine = rescale01( alcohol_wine * alcoholVol_wine ),
+                                   deriv_alcoholBeer = rescale01( alcohol_beer * alcoholVol_beer ),
+                                   deriv_alcoholOther = rescale01( alcohol_other * alcoholVol_other ),
+                                   deriv_effSmokeCigarette = rescale01( smoke_cigarette * (1-smokeFree_cigarette) ),
+                                   deriv_effSmoke2ndCigarette = rescale01( smoke_secondhandCigarette * (1-smokeFree_secondhandCigarette) ),
+                                   deriv_effSmokeCigar = rescale01( smoke_cigar * (1-smokeFree_cigar) ),
+                                   deriv_effSmokePipe = rescale01( smoke_pipe * (1-smokeFree_pipe) ),
+                                   deriv_effSmokeECigarette = rescale01( smoke_eCigarette * (1-smokeFree_eCigarette) ),
+                                   deriv_effSmokeMarijuana = rescale01( smoke_marijuana * (1-smokeFree_marijuana) ),
+                                   deriv_effSmokeOther = rescale01( smoke_other * (1-smokeFree_other) ),
+                                   deriv_effSmokeCigaretteAmt = rescale01( deriv_effSmokeCigarette * nCigarette ),
+                                   deriv_medCurrAntiInflam = rescale01( medCurr_antiInflam * medCurrPattern_antiInflam ),
+                                   deriv_medCurrCortico = rescale01( medCurr_corticosteroids * medCurrPattern_corticosteroids ),
+                                   deriv_medCurrAllergy = rescale01( medCurr_allergyMed * medCurrPattern_allergyMed ),
+                                   deriv_medCurrImmSup = rescale01( medCurr_immSupressive * medCurrPattern_immSupressive ),
+                                   deriv_medCurrAntibio = rescale01( medCurr_antibiotics * medCurrPattern_antibiotics ),
+                                   deriv_medCurrIronSup = rescale01( medCurr_ironSuppl * medCurrPattern_ironSuppl ),
+                                   deriv_medCurrVitSup = rescale01( medCurr_vitamineSuppl * medCurrPattern_vitamineSuppl ),
+                                   deriv_medCurrPainKill = rescale01( medCurr_painKiller * medCurrPattern_painKiller ),
+                                   deriv_medCurrAntiDepSSRI = rescale01( medCurr_antidepressantSSRI * medCurrPattern_antidepressantSSRI ),
+                                   deriv_medCurrAntiDepOther = rescale01( medCurr_antidepressantOther * medCurrPattern_antidepressantOther ),
+                                   # Disabling the following two, since there are no non-zero values after multiplication.
+                                   #deriv_medCurrPreDiab = rescale01( medCurr_prediabetesMed * medCurrPattern_prediabetesMed ),
+                                   #deriv_medCurrPPI = rescale01( medCurr_PPI * medCurrPattern_PPI ),
+                                   deriv_medCurrAntiviral = rescale01( medCurr_antiviral * medCurrPattern_antiviral ),
+                                   deriv_medCurrMarijuana = rescale01( medCurr_marijuana * medCurrPattern_marijuana )
+                                   ) %>%
+                           mutate(across(where(is.numeric), rescale01))
+
+
+# Prints colnames that have NA values
+#colnames(ord_con_var_data)[apply(ord_con_var_data, 2, function(x) sum(is.na(x))>0)]
+
+
+## Deriving new variables
+#veg
+
+
+
+annot = read.csv("SurveyData/preset_levels_20230525.csv", fileEncoding="UTF-8-BOM")
+
+
+
+#One-Hot encode the nominal variables
+library(caret)
+nominalCols = annot$cat_1[annot$type %in% c("n","nm")] %>% setNames(annot$var[annot$type %in% c("n","nm")])
+nominal_annot = data.frame()
+nominal_data = survey_raw %>% select( c(names(nominalCols)) )
+onehot_data = data.frame(row.names = paste0( "XHLT2-HS", survey_raw$id) )
+for(col in colnames(nominal_data)) {
+  tmp_d = nominal_data %>% select(col)
+  dummy <- dummyVars(" ~ .", data=tmp_d, sep = ".")
+  tmp_d_oh <- data.frame(predict(dummy, newdata=tmp_d  ))
+  onehot_data = cbind(onehot_data, tmp_d_oh)
+  nominal_annot = rbind(nominal_annot, data.frame( 
+                                        var = colnames(tmp_d_oh), 
+                                        cat_1 = rep( nominalCols[col], ncol(tmp_d_oh)),
+                                        type = NA,
+                                        levels = NA,
+                                        cat_2 = NA
+                                       )
+                        )
+}
+
+## Derive nominal variables as per Joel's requests
+# NOTE:: make sure to add to nominal_annot for new derived features.
+onehot_data = onehot_data %>% 
+  mutate(
+    deriv_mealChoiceAmerican = as.numeric(grepl("regular american food",survey_raw$mealChoice)),
+    deriv_mealChoiceProt = as.numeric(grepl("rich in protein",survey_raw$mealChoice)),
+    deriv_mealChoiceAmericanProt = as.numeric(grepl("regular american food|rich in protein",survey_raw$mealChoice)),
+    deriv_mealChoiceVeg = as.numeric(grepl("vegetable based|vegetarian|vegan",survey_raw$mealChoice)),
+    deriv_mealChoiceVegan = as.numeric(grepl("vegan",survey_raw$mealChoice)),
+    deriv_mealChoiceVegVegan = as.numeric(grepl("vegetarian|vegan",survey_raw$mealChoice)),
+    deriv_mealChoiceVegbasedNonVegVegan = as.numeric( grepl("vegetable based",survey_raw$mealChoice) & !grepl("vegetarian|vegan", survey_raw$mealChoice) ),
+    deriv_homemadeBreakfast = as.numeric(grepl("All meals|Daily|Frequently",survey_raw$homemade_breakfast)),
+    deriv_homemadeBreakfastNone = as.numeric(grepl("Never",survey_raw$homemade_breakfast)),
+    deriv_homemadeLunch = as.numeric(grepl("All meals|Daily|Frequently",survey_raw$homemade_breakfast)),
+    deriv_homemadeLunchNone = as.numeric(grepl("Never",survey_raw$homemade_breakfast)),
+    deriv_homemadeDinner = as.numeric(grepl("All meals|Daily|Frequently",survey_raw$homemade_breakfast)),
+    deriv_homemadeDinnerNone = as.numeric(grepl("Never",survey_raw$homemade_breakfast))
+    )
+
+# Add nominal_annot for the derived nominal variables. Make sure the order is same as the order of deriv_* features above.
+nominal_annot = rbind(
+  nominal_annot,
+  data.frame(
+    var = c("deriv_mealChoiceAmerican", "deriv_mealChoiceProt", "deriv_mealChoiceAmericanProt", "deriv_mealChoiceVeg", "deriv_mealChoiceVegan"),
+    cat_1 = c("diet","diet","diet","diet","diet"),
+    type=NA,
+    levels=NA,
+    cat_2=NA
+    )
+  )
+
+
+
+# There is no need to rescale01 the one-hot encoded data.
+
+# merge with ordinal/continuous data 
+ord_con_var_data = base::merge(ord_con_var_data, onehot_data, by="row.names") %>% column_to_rownames("Row.names")
+annot = rbind(annot, nominal_annot)
+
+annot.sub = annot %>% filter( var %in%  colnames(ord_con_var_data)) %>% select(c("var","cat_1"))
+
+
+
+# Add annotation for the derived features.
+derived_features = grep("deriv_", colnames(ord_con_var_data), value = T)
+
+#derived_features_cat_1 = ifelse( grepl("bmi",derived_features), 
+#                                 "demographic", 
+#                                 ifelse( grepl("Smoke",derived_features),
+#                                         "exposure",
+#                                         ifelse( grepl("medCurr",derived_features),
+#                                                 "health",
+#                                                 "diet") ) )
+
+derived_features_cat_1 = case_when(
+  grepl("bmi",derived_features) ~ "demographic",
+  grepl("race",derived_features) ~ "demographic",
+  grepl("ethnicity",derived_features) ~ "demographic",
+  grepl("Smoke",derived_features) ~ "exposure",
+  grepl("medCurr",derived_features) ~ "health",
+  TRUE ~ "diet"
+)
+
+annot.sub = rbind(annot.sub, data.frame(var = derived_features, cat_1 = derived_features_cat_1))
+
+
+
+
+# Diet
+survey_diet = ord_con_var_data %>% select( c(
+                                              as.vector(annot.sub[annot.sub$cat_1 %in% c("diet"),]$var)
+                                            ) )
+
+survey_diet = survey_diet %>% setNames( paste0("dietSurvey_",colnames(.)) ) %>% mutate_if(is.numeric, function(x) log10(x+1))
+
+
+
+
+
+
+# Health
+survey_health = ord_con_var_data %>% select( c(
+                                              as.vector(annot.sub[annot.sub$cat_1 %in% c("health"),]$var)
+                                            ) )
+
+survey_health = survey_health %>% setNames( paste0("healthSurvey_",colnames(.)) ) %>% mutate_if(is.numeric, function(x) log10(x+1))
+
+
+
+
+# Stool
+survey_stool = ord_con_var_data %>% select( c(
+                                              as.vector(annot.sub[annot.sub$cat_1 %in% c("stool"),]$var)
+                                            ) )
+
+survey_stool = survey_stool %>% setNames( paste0("stoolSurvey_",colnames(.)) ) %>% mutate_if(is.numeric, function(x) log10(x+1))
+
+
+
+
+# Exposure
+survey_exposure = ord_con_var_data %>% select( c(
+                                              as.vector(annot.sub[annot.sub$cat_1 %in% c("exposure"),]$var)
+                                            ) )
+
+survey_exposure = survey_exposure %>% setNames( paste0("exposureSurvey_",colnames(.)) ) %>% mutate_if(is.numeric, function(x) log10(x+1))
+
+
+
+
+# Mood
+survey_mood = ord_con_var_data %>% select( c(
+                                              as.vector(annot.sub[annot.sub$cat_1 %in% c("mood"),]$var)
+                                            ) )
+
+survey_mood = survey_mood %>% setNames( paste0("moodSurvey_",colnames(.)) ) %>% mutate_if(is.numeric, function(x) log10(x+1))
+
+
+
+# Oral care
+survey_oralCare = ord_con_var_data %>% select( c(
+                                              as.vector(annot.sub[annot.sub$cat_1 %in% c("oral.care"),]$var)
+                                            ) )
+
+survey_oralCare = survey_oralCare %>% setNames( paste0("oralCareSurvey_",colnames(.)) ) %>% mutate_if(is.numeric, function(x) log10(x+1))
+
+
+
+
+
+# Demographic
+survey_demographic = ord_con_var_data %>% select( c(
+                                              as.vector(annot.sub[annot.sub$cat_1 %in% c("demographic"),]$var)
+                                            ) )
+
+  # adding sex data for people who didn't fill out the survey using the screening information.
+survey_demographic = bind_rows(survey_demographic, data.frame(genderFemale=c(1,1,0,0), genderMale=c(0,0,1,1), row.names = c("XHLT2-HS21","XHLT2-HS35","XHLT2-HS58","XHLT2-HS81")))
+
+survey_demographic = survey_demographic %>% setNames( paste0("demographicSurvey_",colnames(.)) ) %>% mutate_if(is.numeric, function(x) log10(x+1))
+
+
+
+```
+
+```{r asa24}
+asa24 = read.csv("computables/asa24/current/asa24_raw_count.csv", fileEncoding="UTF-8-BOM")
+
+## Remove HS99
+asa24 = asa24 %>% dplyr::filter(!grepl("HS99", sample_id))
+
+row.names(asa24) = gsub("-T1STL1", "", asa24$sample_id)
+asa24 = asa24 %>%
+  mutate(sample_id = NULL)
+
+# Remove a feature with zero values in all samples
+asa24 = asa24 %>% select( which(colSums(.)>0) )
+
+asa24 = log(asa24+1, 10) %>% setNames( paste0("asa24_",colnames(.)) )
+
+
+
+```
+
+
+
+```{r cytof flowsom}
+
+objs = load("cytof_data_analysis/subset_marker_2/cycombine/checkpoint_4.RData")
+annot = read.csv("cytof_data_analysis/subset_marker_2/cycombine/CyTOF_CyComb_Cluster_Annotation.csv")
+
+## Remove HS99
+file_by_cluster_freq_norm = dplyr::filter(file_by_cluster_freq_norm, ! grepl("HS99", file_name) )
+file_by_cluster_freq = dplyr::filter(file_by_cluster_freq, ! grepl("HS99|HS1000", file_name) )
+
+
+# Using cluster-level freq after removing "trash" clusters.
+file_by_cluster_freq_norm_wide = file_by_cluster_freq %>% 
+    #dplyr::filter(cluster %in% valid_clusters) %>%
+    filter(!cluster %in% annot$cluster[annot$landmark == "trash"]) %>% 
+    mutate(cluster = paste0(cluster, ".", annot$landmark[match(cluster, annot$cluster)])  ) %>%
+    group_by(file_name) %>% mutate(Freq = Freq/sum(Freq)*100) %>%
+    pivot_wider(values_from = Freq, names_from = cluster) %>%
+    mutate(file_name = str_match(file_name, "XHLT2-HS\\d+") ) %>%
+    column_to_rownames("file_name")
+
+# Log-transform data
+cytof_flowSOM = log10(file_by_cluster_freq_norm_wide + 1) %>% as.data.frame() %>% setNames( paste0("cytof_",colnames(.)) )
+
+```
+
+
+
+```{r plasma olink}
+
+plasmaOlink_sample_metadata = read.csv("computables/plasma-olink/current/plasma_olink_sample_metadata.csv", check.names = F)
+plasmaOlink_feat_metadata = read.csv("computables/plasma-olink/current/plasma_olink_feature_metadata.csv", check.names = F)
+data = read.csv("computables/plasma-olink/current/plasma_olink_norm_count.csv", check.names = F, row.names = 1)
+# Remove samples with failed QC (QC Warning)
+data = data[plasmaOlink_sample_metadata$`QC Warning` == "Pass",]
+# Remove HS99
+data = data[ !grepl("XHLT2-HS99",rownames(data)), ]
+plasmaOlink_sample_metadata = plasmaOlink_sample_metadata[ plasmaOlink_sample_metadata$donor_id != "XHLT2-HS99", ]
+# Remove features with more than 60% values below LOD
+data = data[,colSums(is.na(data)) <= nrow(data)*0.6]
+data = mutate_all(data, as.numeric)
+# Impute the values below LOD by half-min
+#data = apply(data, 2, function(x) {x[is.na(x)] = min(x, na.rm = T)/2; x} ) %>% as.data.frame()
+data = apply(data, 2, function(x) {x[is.na(x)] = ifelse(min(x, na.rm = T) < 0, min(x, na.rm = T)*2, min(x, na.rm = T)/2); x} ) %>% as.data.frame()
+# Change sample ids to donor ids
+rownames(data) = str_remove(rownames(data), "-BLE1PL1")
+
+# Check the plate effect.
+run_pvca(
+  mat = t(data), 
+  batch = plasmaOlink_sample_metadata$`Plate ID` %>% 
+    setNames(plasmaOlink_sample_metadata$donor_id), 
+  meta = plasmaOlink_sample_metadata %>% remove_rownames() %>%
+    column_to_rownames("donor_id") %>% 
+    merge(survey_demographic, by="row.names") %>% 
+    column_to_rownames("Row.names"), 
+  plot_title = "plasmaOlink")
+
+plasmaOlink = data %>% setNames(paste0("plasmaOlink_", colnames(data)))
+
+```
+
+
+
+
+
+```{r plasma metabolites}
+
+pl_metab_all_sample_metadata = read.csv("computables/plasma-untar-metabolomics/current/all_metabolites_ucd_sample_metadata.csv", check.names = F)
+pl_metab_all_feat_metadata = read.csv("computables/plasma-untar-metabolomics/current/all_metabolites_ucd_feature_metadata.csv", check.names = F)
+pl_metab_all = read.csv("computables/plasma-untar-metabolomics/current/all_metabolites_ucd_norm_count.csv", fileEncoding="UTF-8-BOM", check.names = F)
+
+row.names(pl_metab_all) = gsub("-BLE1PL1", "", pl_metab_all$sample_id)
+pl_metab_all = pl_metab_all %>%
+  mutate(sample_id = NULL)
+
+# Remove HS99
+pl_metab_all = pl_metab_all[ !grepl("XHLT2-HS99",rownames(pl_metab_all)), ]
+pl_metab_all_sample_metadata = pl_metab_all_sample_metadata[ pl_metab_all_sample_metadata$donor_id != "XHLT2-HS99", ]
+
+
+# Remove features with more than 60% missing values
+# This is necessary because there are NA values in this data, this was not the case in stool metabolites. Maybe they had a different data preprocessing pipeline?
+sparseFeat_idx = which(colSums(is.na(pl_metab_all)) > (nrow(pl_metab_all)*0.60)) %>% unname()
+pl_metab_all = pl_metab_all[, -sparseFeat_idx]
+pl_metab_all_feat_metadata = pl_metab_all_feat_metadata[ -sparseFeat_idx, ]
+
+# Impute missing values by half-min method.
+pl_metab_all = apply(pl_metab_all, 2, function(x){ x[is.na(x)] = min(x, na.rm = T)/2; x }) %>% as.data.frame()
+
+# Log transform the data.
+pl_metab_all = log(pl_metab_all+1, 10) %>% setNames( paste0("pmetabAll_",colnames(.)) )
+
+```
+
+
+
+
+
+```{r fig.width=10, fig.height=10}
+
+stoolMetab_sample_metadata = read.csv("computables/stool-untar-metabolomics/current/all_metabolites_ucd_sample_metadata.csv")
+stoolMetab_feat_metadata = read.csv("computables/stool-untar-metabolomics/current/all_metabolites_ucd_feature_metadata.csv")
+
+stoolMicrob_sample_metadata = read.csv("computables/stool-metagenomics/current/sample_metadata.csv")
+stoolMicrob_feat_metadata = read.csv("computables/stool-metagenomics/current/metaphlan3_species_feature_metadata.csv")
+
+cytof_file_metadata = read.csv("cytof_data_analysis/file_metadata.csv") %>% mutate(donor_id = paste0("XHLT2-",donor_id), sample_id = paste0(donor_id, "-BLE1STL1"))
+cytof_feat_metadata = read.csv("cytof_data_analysis/subset_marker_2/FlowSOM250subset3_Final_cluster_anotation.CSV") %>% mutate(feat = paste0(cluster,".",landmark))
+
+
+datasets = list(
+  "stoolMetab" = list("df"=stl_metab_all, sample_meta = stoolMetab_sample_metadata, feat_meta = stoolMetab_feat_metadata),
+  "diet" = list("df"=survey_diet),
+  "health" = list("df"=survey_health),
+  "exposure" = list("df"=survey_exposure),
+  "mood" = list("df"=survey_mood),
+  "stool" = list("df"=survey_stool),
+  "oralcare" = list("df"=survey_oralCare),
+  "demographic" = list("df"=survey_demographic),
+  "asa24" = list("df"=asa24),
+  "stoolSpecies" = list("df"=stl_metag_species, sample_meta = stoolMicrob_sample_metadata, feat_meta = stoolMicrob_feat_metadata),
+  "stoolPathAbu" = list("df"=stl_pathway_abundance, sample_meta = stoolMicrob_sample_metadata, feat_meta = stoolMicrob_feat_metadata),
+  "cytofFSClust" = list("df"=cytof_flowSOM, sample_meta = cytof_file_metadata, feat_meta = cytof_feat_metadata),
+  "plasmaOlink" = list("df"=plasmaOlink, sample_meta = plasmaOlink_sample_metadata, feat_meta = plasmaOlink_feat_metadata),
+  "plasmaMetab" = list("df"=pl_metab_all, sample_meta = pl_metab_all_sample_metadata, feat_meta = pl_metab_all_feat_metadata)
+)
+
+# Check if HS99 is excluded from all assays.
+hs99_counts = unlist(lapply(datasets, function(x) length(grep("HS99",row.names(x$df))) ))
+if(any(hs99_counts > 0)) {
+  print(hs99_counts)
+  stop("HS99 exists in at least one dataset, remove it first")
+}
+
+assay_type = c(
+  "stoolMetab" = "metabolomics",
+  "diet" = "survey",
+  "health" = "survey",
+  "exposure" = "survey",
+  "mood" = "survey",
+  "stool" = "survey",
+  "oralcare" = "survey",
+  "demographic" = "survey",
+  "asa24" = "asa24",
+  "stoolSpecies" = "metagenomics",
+  "stoolPathAbu" = "metagenomics",
+  "cytofFSClust" = "cytof",
+  "plasmaOlink" = "proteomics",
+  "plasmaMetab" = "metabolomics"
+)
+
+
+unmodnames = list("stoolMetab" = stl_metab_all_names, "stoolPathAbu" = stl_pathway_abundance_names)
+
+
+#############################################
+#### Scale data
+#############################################
+ds_pareto = c("metabolomics")
+
+for(a in names(assay_type) ) {
+  datasets[[a]][["df_preScale"]] = datasets[[a]][["df"]]
+  datasets[[a]][["df_preScale_clr"]] = as.data.frame(compositions::clr( (10^datasets[[a]][["df"]])-1+0.00001  ))
+  # Calculate MAD and normalized MAD before scaling the data.
+  datasets[[a]][["mad"]] = apply(datasets[[a]][["df"]], 2, mad)
+  datasets[[a]][["mad.clr"]] = apply(datasets[[a]][["df_preScale_clr"]], 2, mad)
+  datasets[[a]][["norm.mad"]] = apply(datasets[[a]][["df"]], 2, function(x) mad(x)/median(x))
+  datasets[[a]][["var"]] = apply(datasets[[a]][["df"]], 2, var)
+  datasets[[a]][["cov"]] = apply(datasets[[a]][["df"]], 2, function(x) sd(x)/mean(x))
+  datasets[[a]][["cov.clr"]] = apply(datasets[[a]][["df_preScale_clr"]], 2, function(x) sd(x)/mean(x))
+  if(assay_type[a] %in% ds_pareto) { # Use pareto scaling
+    datasets[[a]][["df"]] = apply(datasets[[a]][["df"]], 2, function(x) {scale(x)*sqrt(sd(x))} ) %>% `rownames<-`(row.names(datasets[[a]][["df"]])) %>% as.data.frame()
+  } else { # Use regular scaling
+    datasets[[a]][["df"]] = apply(datasets[[a]][["df"]], 2, scale) %>% `rownames<-`(row.names(datasets[[a]][["df"]])) %>% as.data.frame()
+    datasets[[a]][["df_clr"]] = apply(datasets[[a]][["df_preScale_clr"]], 2, scale) %>% `rownames<-`(row.names(datasets[[a]][["df_preScale_clr"]])) %>% as.data.frame()
+  }
+}
+
+
+
+#############################################
+#### Add dataset PCs
+#############################################
+
+allplots = list()
+for(a in names(assay_type) ) {
+  tmp_df = datasets[[a]][["df"]]
+  if(a == "demographic") { # For demographics, I have manually added sex data for the missing 4 data points from the screening data. So the values for other demographic features is NA for those 4. Removing them here before running PCA.
+    tmp_df = tmp_df[ apply(datasets[[a]][["df"]], 1, function(x) sum(is.na(x)) == 0 ), ]
+  }
+  if(a == "health") { # For health, I have set lastPeriod value to NA for males, which doesn't allow PCA analysis. Hence, removing lastPeriod before running PCA.
+    tmp_df$healthSurvey_lastPeriod = NULL
+  }
+  pc_res = run_pca(tmp_df, return_loadings = T, title=a)
+  allplots[[a]] = pc_res$plot
+  datasets[[a]][["pcs"]] = pc_res$pca_out
+  datasets[[a]][["pcvar"]] = pc_res$percentVar
+  #assay_type = c(assay_type, c(assay_type[a])  %>% setNames(paste0(a, "_pcs")) )
+}
+
+ggpubr::ggarrange(plotlist = allplots, ncol=5, nrow=5)
+
+
+
+# Save the output.
+if(TRUE) {
+    date = Sys.Date()
+    if(!CLR){
+      save(datasets, assay_type, unmodnames, file=paste0("processed_data_allsamples_",date,".RData"))
+    }
+    if(CLR){
+      save(datasets, assay_type, unmodnames, file=paste0("processed_data_allsamples_cytofMicrobCLR_",date,".RData"))
+    }
+}
+
+```
+
+
+
+
