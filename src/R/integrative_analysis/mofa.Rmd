@@ -1,0 +1,427 @@
+---
+title: "Build MOFA model"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '202008_.._XHLT2/data/integration')
+```
+
+
+
+```{r load packages}
+library(Seurat)
+#library(SeuratData)
+library(cowplot)
+library(dplyr)
+library(Azimuth)
+library(glmGamPoi)
+library(pheatmap)
+library(pals)
+library(tidyverse)
+library(harmony)
+library(dsb)
+library(MOFA2)
+library(sva)
+library(Hmisc)
+library(RColorBrewer)
+#library(qvalue)
+library(ggpubr)
+  library(EnsDb.Hsapiens.v86)
+  library(MOFAdata)
+  data("MSigDB_v6.0_C5_human") 
+library(RaMP)
+  library(plotly)
+  library(ggrepel)
+
+```
+
+
+
+```{r}
+
+##### PVCA analysis
+#' @param mat: feature (row) x sample (column) data matrix
+#' @param meta: named vector indicating batch labels where names match the sample names
+#' @param meta: sample metadata
+run_pvca <- function(mat, batch, meta, plot_title) {  
+  # step 1: load required packages
+  library(package = "pvca") # devtools::install_github("dleelab/pvca")
+  VarCorr <- lme4::VarCorr
+  
+  # Match samples
+  cmn = colnames(mat) #intersect(colnames(mat), rownames(meta))
+  mat = mat[,cmn]
+  meta = meta[cmn,]
+  batch = batch[cmn]
+  
+  # step 2: specify which assay is going to be used as input
+  pvca_input_matrix <- mat
+  if (sum(is.na(pvca_input_matrix)) > 0) {
+    stop("pvca input matrix should not have missing values")
+  }
+  
+  #meta = meta[colnames(mat),]
+  #meta = apply(meta, 2, function(x){ if(is.numeric(x)){ x[is.na(x)] = 999; x } else { x[is.na(x)] = "NA"; x }  }) %>% as.data.frame()
+  pvca_input_phenodata = data.frame(batch = batch, 
+                         age = meta$demographicSurvey_age,
+                         sex = ifelse( meta$demographicSurvey_genderFemale > meta$demographicSurvey_genderMale, "F", "M"),
+                         row.names = colnames(mat))
+  
+  # step 5: run PVCA
+  fit <- PVCA(counts    = pvca_input_matrix,
+              meta      = pvca_input_phenodata,
+              inter     = FALSE,
+              threshold = 0.6)
+  
+  # step 6: plot barplot with PVCA results
+  pvca_barplot_data <- data.frame(explained = as.vector(fit),
+                                  effect    = names(fit)) %>%
+    arrange(explained) %>%
+    mutate(effect = factor(effect, levels = effect))
+  
+  pvca_barplot <- ggplot(data    = pvca_barplot_data,
+                         mapping = aes(x = effect, y = explained)) +
+    geom_bar(stat = "identity") +
+    geom_text(aes(label = signif(explained, digits = 3)),
+              nudge_y   = 0.01,
+              size      = 3) +
+    labs(x = NULL, y = "Proportion of the variance explained") + 
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45,
+                                     vjust = 1,
+                                     hjust = 1)) +
+    ggtitle(plot_title)
+  print(pvca_barplot)
+}
+
+
+
+
+# Same as plot_data_heatmap function from MOFA2, except that this function doesn't make a plot but just returns the matrix used for pheatmap
+get_heatmap_data = function (object, factor, view = 1, groups = "all", features = 50, 
+    annotation_features = NULL, annotation_samples = NULL, transpose = FALSE, 
+    imputed = FALSE, denoise = FALSE, max.value = NULL, min.value = NULL, 
+    ...) 
+{
+    if (!is(object, "MOFA")) 
+        stop("'object' has to be an instance of MOFA")
+    stopifnot(length(factor) == 1)
+    stopifnot(length(view) == 1)
+    groups <- MOFA2:::.check_and_get_groups(object, groups)
+    factor <- MOFA2:::.check_and_get_factors(object, factor)
+    view <- MOFA2:::.check_and_get_views(object, view)
+    W <- do.call(rbind, get_weights(object, views = view, factors = factor, 
+        as.data.frame = FALSE))
+    Z <- lapply(get_factors(object)[groups], function(z) as.matrix(z[, 
+        factor]))
+    Z <- do.call(rbind, Z)[, 1]
+    Z <- Z[!is.na(Z)]
+    if (isTRUE(denoise)) {
+        data <- predict(object, views = view, groups = groups)[[1]]
+    }
+    else {
+        if (isTRUE(imputed)) {
+            data <- get_imputed_data(object, view, groups)[[1]]
+        }
+        else {
+            data <- get_data(object, views = view, groups = groups)[[1]]
+        }
+    }
+    if (is(data, "list")) {
+        data <- do.call(cbind, data)
+    }
+    if (is(features, "numeric")) {
+        if (length(features) == 1) {
+            features <- rownames(W)[tail(order(abs(W)), n = features)]
+        }
+        else {
+            features <- rownames(W)[order(-abs(W))[features]]
+        }
+        features <- names(W[features, ])[order(W[features, ])]
+    }
+    else if (is(features, "character")) {
+        stopifnot(all(features %in% features_names(object)[[view]]))
+    }
+    else {
+        stop("Features need to be either a numeric or character vector")
+    }
+    data <- data[features, ]
+    data <- data[, names(Z)]
+    data <- data[, apply(data, 2, function(x) !all(is.na(x)))]
+    order_samples <- names(sort(Z, decreasing = TRUE))
+    order_samples <- order_samples[order_samples %in% colnames(data)]
+    data <- data[, order_samples]
+    if (!is.null(annotation_samples)) {
+        if (is.data.frame(annotation_samples)) {
+            message("'annotation_samples' provided as a data.frame, please make sure that the rownames match the sample names")
+            if (any(!colnames(data) %in% rownames(annotation_samples))) {
+                stop("There are rownames in annotation_samples that do not correspond to sample names in the model")
+            }
+            annotation_samples <- annotation_samples[colnames(data), 
+                , drop = FALSE]
+        }
+        else if (is.character(annotation_samples)) {
+            stopifnot(annotation_samples %in% colnames(object@samples_metadata))
+            tmp <- object@samples_metadata
+            rownames(tmp) <- tmp$sample
+            tmp$sample <- NULL
+            tmp <- tmp[order_samples, , drop = FALSE]
+            annotation_samples <- tmp[, annotation_samples, drop = FALSE]
+            rownames(annotation_samples) <- rownames(tmp)
+        }
+        else {
+            stop("Input format for 'annotation_samples' not recognised ")
+        }
+        foo <- sapply(annotation_samples, function(x) is.logical(x) || 
+            is.character(x))
+        if (any(foo)) 
+            annotation_samples[, which(foo)] <- lapply(annotation_samples[, 
+                which(foo), drop = FALSE], as.factor)
+    }
+    if (!is.null(annotation_features)) {
+        stop("'annotation_features' is currently not implemented")
+    }
+    if (transpose) {
+        data <- t(data)
+        if (!is.null(annotation_samples)) {
+            annotation_features <- annotation_samples
+            annotation_samples <- NULL
+        }
+        if (!is.null(annotation_features)) {
+            annotation_samples <- annotation_features
+            annotation_features <- NULL
+        }
+    }
+    if (!is.null(max.value)) 
+        data[data >= max.value] <- max.value
+    if (!is.null(min.value)) 
+        data[data <= min.value] <- min.value
+    return(data)
+    #pheatmap(data, annotation_row = annotation_features, annotation_col = annotation_samples,...)
+}
+
+
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  =(cormat)[ut],
+    p = pmat[ut]
+    )
+}
+
+
+```
+
+
+
+
+```{r load and prepare datasets}
+
+load("processed_baseline_data.RData", verbose = TRUE) # load("202008_.._XHLT2/data/integration/processed_data_allsamples_2023-03-20.RData", verbose = TRUE)
+
+datasets$cytof = datasets$cytofFSClust
+datasets$cytofFSClust = NULL
+# Use CLR-transformed data for MOFA
+datasets$stoolSpecies$df = datasets$stoolSpecies$df_clr
+
+
+datasets_1 <- lapply(datasets, function(x){t(x$df)} )
+datasets_scRNA <- readRDS("top5kgenes_pseudobulk_rna_baseline.rds")
+names(datasets_scRNA) = gsub("/","-",names(datasets_scRNA))
+
+# Prepare batch-effect vectors.
+scR_sample_pool_map <- read.table("202008_.._XHLT2/data/scRNA_CITE/DB1-7/sample_mapping/sample_to_pool_mapping.tsv", header = T) %>% mutate(sample = paste0("XHLT2-",sample) ) %>% pull(pool, name = "sample")
+
+
+sc_celltypes <- c(
+"B intermediate",
+"B memory",
+"B naive",
+"Basophil",
+"CD4 A4B7 memory",
+"CD4 A6 memory",
+"CD4 cytotoxic",
+"CD4 Naive A",
+"CD4 Naive B",
+"CD4 Naive C",
+"CD4 Naive D",
+"CD4 Naive E",
+"CD4 Th1-like/Tem",
+"CD4 Th2-like/Tcm",
+"CD8 A1B1/A6B1 Tem",
+"CD8 AEB7 memory",
+"CD8 cytotoxic",
+"CD8 Naive A",
+"CD8 Naive B",
+"CD8 Naive C",
+"CD8 Naive D",
+"CD8 Tem",
+"cDC2",
+"cMo A",
+"cMo B",
+"cMo C",
+"cMo?",
+"gdT",
+"iNK",
+"MAIT DNAM-1low",
+"mNK CD94high",
+"mNK CD94low",
+"mNK terminal",
+"ncMo",
+"pDC",
+"Treg CD25high"
+)
+
+sc_celltypes = gsub("/","-",sc_celltypes)
+
+
+warning("############################## Did you change / by - in the celltype names???")
+sobjs_all_both_corr_clust$manual.celltype2 = case_when(
+  sobjs_all_both_corr_clust$manual.celltype == "B memory switched" ~ "B memory",
+  sobjs_all_both_corr_clust$manual.celltype == "B memory non-switched" ~ "B intermediate",
+  sobjs_all_both_corr_clust$manual.celltype == "cMo_T" ~ "cMo?",
+  sobjs_all_both_corr_clust$manual.celltype == "mNK A" ~ "mNK CD94high",
+  sobjs_all_both_corr_clust$manual.celltype == "mNK B" ~ "mNK CD94low",
+  sobjs_all_both_corr_clust$manual.celltype == "NK adaptive memory" ~ "mNK terminal",
+  TRUE ~ sobjs_all_both_corr_clust$manual.celltype
+)
+## Prepare citeseq freq data.
+cite_freq = table(sobjs_all_both_corr_clust$manual.celltype2, sobjs_all_both_corr_clust$donor_id) %>% 
+              data.frame() %>% dplyr::filter(! Var2 %in% c("XHLT2-HS33","XHLT2-HS99")) %>% 
+              mutate(Var1 = gsub("/","-",Var1)) %>%
+              dplyr::filter(Var1 %in% sc_celltypes) %>%
+              group_by(Var2) %>% mutate(Freq = Freq/sum(Freq)*100) %>% 
+              pivot_wider(names_from = Var1, values_from = Freq) %>% 
+              column_to_rownames("Var2")
+
+
+
+cite_freq_log = log10(cite_freq + 1) %>%  setNames( paste0("citeFreq_",colnames(.)) )
+cite_freq_clr = compositions::clr(cite_freq) %>% as.data.frame() %>% setNames( paste0("citeFreq_",colnames(.)) )
+
+
+datasets$citeFreq = list(
+  "df_preScale" = cite_freq_log, 
+  "df_preScale_clr" = cite_freq_clr,
+  sample_meta = as.data.frame(scR_sample_pool_map) %>% rownames_to_column("donor_id") %>% mutate(batch = scR_sample_pool_map),
+  mad = apply(cite_freq_log, 2, mad),
+  mad.clr = apply(cite_freq_clr, 2, mad),
+  norm.mad = apply(cite_freq_log, 2, function(x) mad(x)/median(x) ),
+  var = apply(cite_freq_log, 2, var),
+  cov = apply(cite_freq_log, 2, function(x) sd(x)/mean(x) ),
+  cov.clr = apply(cite_freq_clr, 2, function(x) sd(x)/mean(x) )
+  )
+
+cite_freq = apply(cite_freq_log, 2, scale) %>% `rownames<-`(row.names(cite_freq_log)) %>% data.frame(check.names=T) %>% t()
+cite_freq_clr = apply(cite_freq_clr, 2, scale) %>% `rownames<-`(row.names(cite_freq_clr)) %>% data.frame(check.names=T) %>% t()
+datasets$citeFreq[["df"]] = cite_freq %>% t()
+datasets$citeFreq[["df_clr"]] = cite_freq_clr %>% t()
+
+
+datasets_1$citeFreq = cite_freq
+
+
+###############################################
+#### Put GEX and non-GEX datasets together
+###############################################
+# Add dataset name as prefix to each feature name
+sc_celltypes = intersect(sc_celltypes, names(datasets_scRNA))
+datasets_scRNA_sub = datasets_scRNA[sc_celltypes]
+#datasets_scRNA_sub = datasets_scRNA_corr_scale[sc_celltypes]
+for(n in names(datasets_scRNA_sub)){ rownames(datasets_scRNA_sub[[n]]) = paste0(n,"_",rownames(datasets_scRNA_sub[[n]])) }
+warning("Dropping HS33 datapoint from scRNA datasets")
+for(d in names(datasets_scRNA_sub)) {
+  removed_samples <- ! grepl("HS33|HS99", colnames(datasets_scRNA_sub[[d]]))
+  if(sum(removed_samples) < ncol(datasets_scRNA_sub[[d]]) ) {
+    cat("Removing HS33 & HS99 from", d, "\n")
+    datasets_scRNA_sub[[d]] <- datasets_scRNA_sub[[d]][, removed_samples ]
+  }
+}
+all_datasets = append(datasets_1, datasets_scRNA_sub)
+
+
+#############################################
+#### Make samples consistent
+#### Using the survey cohort, introducing NA columns for datasets with missing samples.
+#############################################
+all_samples = unlist(lapply(all_datasets, colnames ))
+# Using all non-HS99 samples
+common_samples = unique(all_samples)
+cat("Number of common samples across all datasets =", length(common_samples), "\n")
+
+for(a in names(all_datasets)) {
+  ## Use the following two lines of commands to introduce NA columns for samples that don't exist in the dataset.
+  all_datasets[[a]] = all_datasets[[a]][, match(common_samples, colnames(all_datasets[[a]])) ]
+  colnames(all_datasets[[a]]) = common_samples
+}
+#lapply(all_datasets, function(x) dim(x))
+
+
+```
+
+
+
+```{r build MOFA model}
+
+if(FALSE) { # In the end, decided to keep ribo and mito genes
+  ## Remove Ribo and mito genes
+  ribo_regex = "_RP[SL][[:digit:]]|_RPLP[[:digit:]]|_RPSA"
+  mito_regex = "_MT-"
+  for(i in names(datasets_scRNA_sub)) {
+    mat = all_datasets[[i]]
+    mat = mat[ grep(ribo_regex,rownames(mat), invert = T), ]
+    all_datasets[[i]] = mat[ grep(mito_regex,rownames(mat), invert = T), ]
+  }
+}
+
+survey_omic_names = c("diet","health","exposure","mood","oralcare","demographic","stool")
+
+survey_datasets = all_datasets[survey_omic_names]
+nonSur_datasets = all_datasets[ !(names(all_datasets) %in% survey_omic_names) ]
+
+
+nonSur_nonCITE_datasets <- nonSur_datasets[ ! names(nonSur_datasets) %in% sc_celltypes ]
+
+#saveRDS(survey_datasets, "survey_datasets.rds")
+#saveRDS(nonSur_datasets, "nonSur_datasets.rds")
+#saveRDS(nonSur_nonCITE_datasets, "nonSur_nonCITE_datasets.rds")
+#ds <- readRDS("nonSur_nonCITE_datasets.rds")
+#ds <- readRDS("nonSur_datasets.rds")
+
+MOFAobject <- create_mofa(ds)
+
+plot_data_overview(MOFAobject)
+nfactor <- 15
+data_opts <- get_default_data_options(MOFAobject)
+model_opts <- get_default_model_options(MOFAobject)
+model_opts$num_factors <- nfactor
+train_opts <- get_default_training_options(MOFAobject)
+
+#train_opts$verbose <- TRUE
+
+MOFAobject <- prepare_mofa(
+  object = MOFAobject,
+  data_options = data_opts,
+  model_options = model_opts,
+  training_options = train_opts
+)
+
+
+#
+# To activate this environment, use
+#
+#     $ conda activate /c4/home/rpatel5/.cache/R/basilisk/1.4.0/MOFA2/1.2.2/mofa_env
+#
+# To deactivate an active environment, use
+#
+#     $ conda deactivate
+
+outfile = file.path(getwd(),"mofa_model.hdf5")
+MOFAobject.trained <- run_mofa(MOFAobject, outfile)
+
+```
+

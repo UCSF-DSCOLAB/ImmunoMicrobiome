@@ -1,0 +1,1500 @@
+---
+title: "Final analysis"
+author: "Ravi K. Patel"
+date: "3/23/2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '/krummellab/data1/rpatel5/projects/202008_joel_XHLT2/data/integration')
+```
+
+```{r Install packages, eval=FALSE}
+if(FALSE) {
+## Regular installation
+install.packages("Seurat")
+install.packages("pheatmap")
+install.packages("pals")
+install.packages("tidyverse")
+install.packages("Hmisc")
+# install.packages("RColorBrewer")
+install.packages("ggpubr")
+# install.packages("plotly")
+# install.packages("ggrepel")
+install.packages("vegan")
+install.packages("corrr")
+install.packages("tidygraph")
+install.packages("ggraph")
+install.packages("igraph")
+install.packages("ggbeeswarm")
+install.packages("circlize")
+install.packages("ComplexHeatmap")
+
+## Bioconductor Installation
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("glmGamPoi")
+BiocManager::install("MOFA2")
+BiocManager::install("MOFAdata") # not working
+BiocManager::install("sva") #batch effect correction
+BiocManager::install("EnsDb.Hsapiens.v86") #Annotation package for scRNAseq
+BiocManager::install("preprocessCore")
+
+## Remote Installation
+install.packages("remotes")
+remotes::install_github("Mathelab/RaMP-DB")
+remotes::install_github("bioFAM/MOFAdata")
+
+## GitHub Installation
+install.packages("devtools")
+library(devtools)
+install_github("jokergoo/ComplexHeatmap")
+}
+```
+
+```{r load packages}
+library(Seurat)
+library(glmGamPoi)
+library(pheatmap)
+library(pals)
+library(tidyverse)
+library(MOFA2)
+library(sva)
+library(Hmisc)
+library(RColorBrewer)
+library(ggpubr)
+library(EnsDb.Hsapiens.v86)
+library(MOFAdata)
+data("MSigDB_v6.0_C5_human") 
+#library(RaMP)
+library(plotly)
+library(ggrepel)
+library(preprocessCore)
+library(vegan)
+library(corrr)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+library(ggbeeswarm)
+```
+
+```{r load functions}
+source("functions_chunk.R")
+```
+
+
+
+```{r setting global variables}
+
+pval_afterCorr = T
+
+```
+
+
+
+```{r organize model data, fig.width=16}
+
+# Load original object with all modalities (except CITE-seq), including those that were not used in MOFA
+objs = load("processed_baseline_data.RData")
+
+# Set remove_scbatch_factor = TRUE to remove the factors associated with scRNA batch.
+remove_scbatch_factor = TRUE
+
+###### Load model
+nfactor = 15
+nonSur_datasets = readRDS("final_obj_files_20230105/nonSur_datasets.rds")
+#survey_datasets = readRDS("final_obj_files_20230105/survey_datasets.rds")
+
+# Load the survey data from the newer version of preprocessed datasets.
+warning("Remember to update the update the survey data in obj too in chunk 15 titled 'add survey data to obj'. Last updated 0n 06/03/ ")
+survey_datasets = list()
+survey_omic_names = c("diet","health","exposure","mood","oralcare","demographic","stool")
+sample_ids = colnames(nonSur_datasets$stoolMetab)
+for(n in survey_omic_names) {
+  survey_datasets[[n]] = t(datasets$general_survey[[n]]$df[sample_ids, ] %>% `rownames<-`(sample_ids))
+}
+
+# Add flu vaccine related questions from flu_vaccine_status.csv
+flu = read.csv("flu_vaccine_status.csv")
+lastFluVaccine = 
+  data.frame(
+    t(
+      as.data.frame(
+        flu[
+          match(
+            colnames(survey_datasets$health), 
+            flu$colab_ids
+            ), 
+          c("lastFluVaccineStatus","lastFluVaccineSinceSmplngFinal")] + 0)), 
+    row.names = c("healthSurvey_lastFluVaccineStatus","healthSurvey_lastFluVaccineSinceSmplngFinal")) %>% 
+  setNames(colnames(survey_datasets$health))
+
+survey_datasets$health = rbind(
+  survey_datasets$health,
+  lastFluVaccine
+)
+
+
+mf = "final_obj_files_20230105/mofa_model.hdf5"
+model <- load_model(mf, remove_outliers = F)
+model.t <- load_model(mf, remove_outliers = T)
+
+# Rename the feature names using the full names from nonSur_datasets (MOFA truncates the feature names to 50 chars), while removing the dataset name from the feature names.
+feature_names = list()
+for(ds in names(nonSur_datasets)) {
+  feature_names[[ds]] = gsub("^[^_]+_", "", rownames(nonSur_datasets[[ds]]))
+}
+features_names(model) = feature_names
+features_names(model.t) = feature_names
+
+# Update the cite-seq feature names to match the latest annotation. Assuming the object hasn't been updated yet.
+scAnot4=read.csv("final_obj_files_20230105/annotation_res2_v4.csv") %>% setNames(paste0(names(.), "_4")) scAnot5=read.csv("final_obj_files_20230105/annotation_res2_v5.csv") %>% setNames(paste0(names(.), "_5")) scAnots = inner_join(scAnot4, scAnot5, by=c("cluster_4"="cluster_5")) %>% mutate(fine_4_mod = make.names(fine_4), fine_4_mod2 = gsub("/","-",fine_4))
+new_scAnot = scAnots$fine_5 %>% setNames(scAnots$fine_4_mod)
+#warning("#################### ATTENTION: Do you also want to change the dataset labels???")
+if(all(features_names(model)[["citeFreq"]] %in% scAnots$fine_4_mod)) { # If all citeFreq feature names match the v4 annotation.
+  features_names(model)[["citeFreq"]] = new_scAnot[ features_names(model)[["citeFreq"]] ] %>% unname()
+  features_names(model.t)[["citeFreq"]] = new_scAnot[ features_names(model.t)[["citeFreq"]] ] %>% unname()
+}
+
+
+# Change the cite-seq dataset labels
+tmp_lbls <- data.frame(ori_lbls = views_names(model), new_lbls = scAnots$fine_5[ match( views_names(model) , scAnots$fine_4_mod2) ])
+views_names(model) <- ifelse(is.na(tmp_lbls$new_lbls), tmp_lbls$ori_lbls, tmp_lbls$new_lbls)
+views_names(model.t) <- ifelse(is.na(tmp_lbls$new_lbls), tmp_lbls$ori_lbls, tmp_lbls$new_lbls)
+
+
+
+# Update metabolites and metagenome-pathway names. 
+# Remove the spaces from ends of the features name
+unmodnames$stoolMetab$unmodnames = gsub("\\s+$","",unmodnames$stoolMetab$unmodnames)
+features_names(model)$stoolMetab <- unmodnames$stoolMetab$unmodnames[match( features_names(model)$stoolMetab, unmodnames$stoolMetab$modnames)]
+features_names(model.t)$stoolMetab <- unmodnames$stoolMetab$unmodnames[match( features_names(model.t)$stoolMetab, unmodnames$stoolMetab$modnames)]
+features_names(model)$stoolPathAbu <- unmodnames$stoolPathAbu$unmodnames[match( features_names(model)$stoolPathAbu, unmodnames$stoolPathAbu$modnames)]
+features_names(model.t)$stoolPathAbu <- unmodnames$stoolPathAbu$unmodnames[match( features_names(model.t)$stoolPathAbu, unmodnames$stoolPathAbu$modnames)]
+
+
+
+
+
+obj = list()
+obj$model <- model
+obj$model.noOutl <- model.t
+obj$dataset_list <- model@data
+obj$factors <- get_factors(model, factors = "all")
+obj$factors <- obj$factors$group1
+obj$weights <- get_weights(model, factors = "all")
+obj$factors.noOutl <- get_factors(model.t, factors = "all")
+obj$factors.noOutl <- obj$factors.noOutl$group1
+obj$weights.noOutl <- get_weights(model.t, factors = "all")
+obj$variance_explained = calculate_variance_explained(model)
+obj$variance_explained$r2_total = obj$variance_explained$r2_total$group1
+obj$variance_explained$r2_per_factor = obj$variance_explained$r2_per_factor$group1
+obj$variance_explained.noOutl = calculate_variance_explained(model.t)
+obj$variance_explained.noOutl$r2_total = obj$variance_explained.noOutl$r2_total$group1
+obj$variance_explained.noOutl$r2_per_factor = obj$variance_explained.noOutl$r2_per_factor$group1
+
+
+###### Add metadata
+# Cytof batch
+file_metadata = read.csv("final_obj_files_20230105/file_metadata.csv")
+cytof_pool = file_metadata$pool_id %>% setNames( c(str_match(file_metadata$file_name, "XHLT2-HS\\d+")) )
+
+# CITE-seq batch
+scR_sample_pool_map <- read.table("final_obj_files_20230105/sample_to_pool_mapping.tsv", header = T) %>% mutate(sample = paste0("XHLT2-",sample) ) %>% pull(pool, name = "sample") scR_sample_pool_map_df <- as.data.frame(scR_sample_pool_map)
+
+plasmaMetab_batches = c(
+    rep("A",42) %>% setNames(paste0("XHLT2-HS", 1:42)),
+    rep("B",42) %>% setNames(paste0("XHLT2-HS", 43:84)),
+    rep("C",27) %>% setNames(paste0("XHLT2-HS", 85:111))
+    )
+
+
+sample_metadata <- data.frame(
+  sample = samples_names(model)[[1]],
+  scR_batch = scR_sample_pool_map_df[samples_names(model)[[1]],,drop=F]$scR_sample_pool_map,
+  cytof_batch = paste0("cyPool", cytof_pool[samples_names(model)[[1]]]),
+  ids = as.numeric(gsub("XHLT2-HS","",colnames(model@data[[1]]$group1)) ),
+  plasmaMetab_batch = plasmaMetab_batches[colnames(model@data[[1]]$group1)]
+)
+sample_metadata = sample_metadata %>%
+  mutate( tech = case_when(
+    scR_batch %in% c(paste0("DB",1:3)) ~ "Tech1",
+    scR_batch %in% c(paste0("DB",4:5)) ~ "Tech2",
+    scR_batch %in% c(paste0("DB",6:7)) ~ "Tech3"
+  ))
+
+samples_metadata(model) <- sample_metadata
+head(model@samples_metadata, n=3)
+
+
+
+
+###### Check factors affected by CyTOF batch effect
+# Check if specific factors are associated with cytof batches
+b = model@samples_metadata$cytof_batch
+plots = list()
+pvals = c()
+pvals_tech = c()
+for(i in 1:nfactor) {
+  pvals[i] <- kruskal.test(obj$factors.noOutl[,i], b )$p.value
+  plots[[i]] = data.frame(factor=obj$factors.noOutl[,i], batch=b) %>% ggplot(aes(x=batch,y=factor)) + geom_boxplot() + theme_classic() + ggtitle(paste(i, " (p", format.pval(pvals[i]), ")" ))
+}
+p = ggarrange(plotlist = plots)
+annotate_figure(p, top = text_grob("CyTOF batch-effect", 
+               color = "black", face = "bold", size = 14))
+
+
+###### Check factors affected by CITE batch effect
+# Check if specific factors are associated with scRNA batches
+#b = scR_sample_pool_map[rownames(f[[1]])]
+b = model@samples_metadata$scR_batch
+plots = list()
+pvals = c()
+pvals_tech = c()
+for(i in 1:nfactor) {
+  pvals[i] <- kruskal.test(obj$factors.noOutl[,i], b )$p.value
+  pvals_tech[i] <- kruskal.test(obj$factors.noOutl[,i], model@samples_metadata$tech )$p.value
+  #boxplot(f[[1]][,i] ~ b, main=paste(i, " (p", pval, ": ptech", pval_tech, ")" ))
+  plots[[i]] = data.frame(factor=obj$factors.noOutl[,i], batch=b) %>% ggplot(aes(x=batch,y=factor)) + geom_boxplot() + theme_classic() + ggtitle(paste(i, " (p", format.pval(pvals[i]), "\nptech", format.pval(pvals_tech[i]), ")" ))
+}
+p = ggarrange(plotlist = plots)
+annotate_figure(p, top = text_grob("CITE batch-effect", 
+               color = "black", face = "bold", size = 14))
+
+
+###### Dataset labels and color palette. 
+dataset_lbls = views_names(model) #colnames(myvar$r2_per_factor$group1)
+dataset_class = data.frame(
+  dataset_class = case_when(
+    dataset_lbls %in% sc_celltypes ~ "gene expression",
+    dataset_lbls %in% c("stoolMetab", "plasmaNPPos", "plasmaNPNeg") ~ "metabolomics",
+    dataset_lbls %in% c("stoolSpecies", "stoolPathAbu") ~ "metagenomics",
+    dataset_lbls %in% c("cytof", "citeFreq") ~ "immune frequencies",
+    dataset_lbls == "asa24" ~ "24h recall"
+  ), 
+  row.names = dataset_lbls
+)
+my_annot_color = list(
+  dataset_class = kelly(6)[2:6] %>% setNames(c("gene expression","metabolomics","metagenomics","immune frequencies","24h recall"))
+)
+
+
+
+###### Variance plots
+# Valid factors: factors that don't correlate with CITE-seq
+valid_factors = which(pvals > 0.0001 & pvals_tech > 0.01)
+
+if(! remove_scbatch_factor) {
+  valid_factors = 1:nfactor
+}
+
+#pdf(paste0("variance_explained_factor", nfactor, ".pdf"), height = 6, width = 12)
+myvar = calculate_variance_explained(model, factors = paste0("Factor", valid_factors) )
+mycol = circlize::colorRamp2(c(0, 5, 40), brewer.pal(9,"YlGn")[c(1,7,9)])
+ComplexHeatmap::pheatmap(myvar$r2_per_factor$group1, cluster_rows = F, cluster_cols = F, color = mycol, annotation_col = dataset_class, annotation_colors = my_annot_color)
+
+myvar = calculate_variance_explained(model.t, factors = paste0("Factor", valid_factors) )
+mycol = circlize::colorRamp2(c(0, 5, 40), brewer.pal(9,"YlGn")[c(1,7,9)])
+ComplexHeatmap::pheatmap(myvar$r2_per_factor$group1, cluster_rows = F, cluster_cols = F, color = mycol, annotation_col = dataset_class, annotation_colors = my_annot_color)
+#dev.off()
+
+
+
+
+```
+
+
+
+```{r calculate or load projection coef pval}
+
+
+pf = gsub(".hdf5","_projection.rds",mf)
+
+
+
+if(file.exists(pf)) {
+  projection_list = readRDS(pf)  
+} else {
+  factors = obj$factors.noOutl
+  
+  dataset_lbls_tmp = names(model@data)
+  #dataset_lbls_tmp = "citeFreq"
+  projection_pval = list()
+  projection_coef = list()
+  for(d in dataset_lbls_tmp) {
+    print(d)
+    # Select the dataset
+    dataset = model@data[[d]]$group1 #nonSur_datasets[[d]]
+    # Get the batches
+    if(dataset_class[d,] == "gene expression" | d == "citeFreq") {
+        batch = model@samples_metadata$scR_batch %>% setNames(rownames(model@samples_metadata))
+    } else if(d == "cytof") {
+        batch = model@samples_metadata$cytof_batch %>% setNames(rownames(model@samples_metadata))
+    } else {
+        batch = NA
+    }
+    # initialize matrices
+    projection_pval[[d]] = matrix(NA, nrow = nrow(dataset), ncol = ncol(factors))
+    projection_coef[[d]] = matrix(NA, nrow = nrow(dataset), ncol = ncol(factors))
+    for(feat_idx in 1:nrow(dataset)) {   # For each feature
+      if(feat_idx %% 500 == 0) {
+        cat("Processed", feat_idx, "features...\n")
+      }
+      for(fac_idx in 1:ncol(factors)) {    # For each factor
+        # Get factor scores and feature values
+        feat = dataset[feat_idx,]
+        fac = factors[,fac_idx]
+        # Remove NA values
+        non_na = names(feat)[ !is.na(feat) & !is.na(fac) ]
+        feat = feat[non_na]
+        fac = fac[non_na]
+        if(! all(is.na(batch))) {   # If batch information is available, account for the batch effect.
+            df = data.frame(fac = fac, feat = feat, batch = batch[non_na])
+            # Quantile normalize feat and fac
+            df[,1:2] = normalize.quantiles(as.matrix(df[,1:2]))
+            # The batch-effect is not a mixed effect. So will just use the linear model with batch term in model matrix
+            #fit = nlme::lme(feat ~ fac, df, ~1|batch)
+            #res = c("coef" = fit$coefficients$fixed[2], "pval" = anova(fit)$"p-value"[2])
+            mm = model.matrix(~ df$fac + df$batch)
+            fit = lm(df$feat ~ mm)
+            s = summary(fit)
+            res = c("coef" = s$coefficients[2,1], "pval" = s$coefficients[2,4])
+        } else{   # If batch information is not available, run
+            df = data.frame(fac = fac, feat = feat)
+            # Quantile normalize feat and fac
+            df[,1:2] = normalize.quantiles(as.matrix(df[,1:2]))
+            fit = lm(feat ~ fac, df)
+            s = summary(fit)
+            res = c("coef" = s$coefficients[2,1], "pval" = s$coefficients[2,4])
+        }
+        projection_coef[[d]][feat_idx, fac_idx] = res[1]
+        projection_pval[[d]][feat_idx, fac_idx] = res[2]
+      }
+    }
+    rownames(projection_coef[[d]]) = rownames(dataset)
+    rownames(projection_pval[[d]]) = rownames(dataset)
+    colnames(projection_coef[[d]]) = colnames(factors)
+    colnames(projection_pval[[d]]) = colnames(factors)
+  }
+  projection_list = list("projection_coef" = projection_coef, "projection_pval" = projection_pval)
+  saveRDS(projection_list, pf)
+}
+
+
+obj$projection_coef = projection_list$projection_coef
+obj$projection_pval = projection_list$projection_pval
+
+signif_features = list()
+for(select_factor in 1:nfactor) {
+  factor_lbl = paste0("Factor",select_factor)
+  signif_features[[factor_lbl]] = list()
+  for(d in dataset_lbls) {
+    w = obj$weights.noOutl[[d]]
+    pval = obj$projection_pval[[d]]
+    signif_features[[factor_lbl]][[d]] = feature_selectionI(
+          list(d = w[,select_factor,drop=F]), 
+          list(d = pval[,select_factor,drop=F]), 
+          FEWR = 0.05, 
+          edge_thr = 0.1, return_pvals = F)[[1]]
+  }
+}
+
+obj$signif_features = signif_features
+
+
+signif_features = list()
+for(select_factor in 1:nfactor) {
+  factor_lbl = paste0("Factor",select_factor)
+  signif_features[[factor_lbl]] = list()
+  for(d in dataset_lbls) {
+    w = obj$weights.noOutl[[d]]
+    pval = obj$projection_pval[[d]]
+    signif_features[[factor_lbl]][[d]] = feature_selectionI(
+          list(d = w[,select_factor,drop=F]), 
+          list(d = pval[,select_factor,drop=F]), 
+          FEWR = 0.1, 
+          edge_thr = 0.1, return_pvals = F, use_fdr = T)[[1]]
+  }
+}
+
+obj$signif_features_afterCorr = signif_features
+
+
+of = gsub(".hdf5","_final_object_v1.rds",mf)
+saveRDS(obj, of)
+
+
+
+```
+
+
+
+```{r prepare TERM2GENE}
+
+# Metab pathways
+sm = read.csv("final_obj_files_20230105/data_files/stool-untar-metabolomics/all_metabolites_ucd_feature_metadata.csv")
+sm$KEGG_CTS = gsub("\n",";",sm$KEGG)
+sm$KEGG_CTS[sm$KEGG_CTS == "No result"] = NA
+sm$Annotation_mod = gsub("\\s+$","",sm$feat) # Remove trailing spaces (forgot to do this when preping the computable feature metadata file.
+#sm$Annotation_mod = str_extract(make.names(sm$Annotation), "^.{1,50}")
+
+categ = read.csv("final_obj_files_20230105/data_files/stool-untar-metabolomics/Categorization_v2.csv")
+categ$Class = ifelse( categ$Class %in% c("","\n"), categ$Superclass, categ$Class)
+categ$Subclass = ifelse( categ$Subclass %in% c("","\n"), categ$Class, categ$Subclass)
+sm_categ = left_join(sm,categ[!duplicated(categ$InChI.Key),], by="InChI.Key")
+
+smsuper_TERM2GENE = dplyr::select(sm_categ, c("Superclass","Annotation_mod")) %>% setNames(c("description","features")) %>% dplyr::filter(description != "") %>% arrange(description)
+smclass_TERM2GENE = dplyr::select(sm_categ, c("Class","Annotation_mod")) %>% setNames(c("description","features")) %>% dplyr::filter(description != "") %>% arrange(description)
+smsub_TERM2GENE = dplyr::select(sm_categ, c("Subclass","Annotation_mod")) %>% setNames(c("description","features")) %>% dplyr::filter(description != "") %>% arrange(description)
+smp1_TERM2GENE = dplyr::select(sm_categ, c("Parent.Level.1","Annotation_mod")) %>% setNames(c("description","features")) %>% dplyr::filter(description != "") %>% arrange(description)
+
+
+smman_TERM2GENE = data.frame()
+manual_annotation_clms = c("Carboxylic.acid","Carboxylic.acid.detail","Trypt_BA_Vit_IM_PA_SUGR","Saturation","Parent.Level.x1","Parent.Level.x2","Parent.Level.x3","Parent.Level.x4","Parent.Level.x5","Parent.Level.x6","Parent.Level.x7","Parent.Level.x8")
+for(myclm in manual_annotation_clms) {
+  smman_TERM2GENE = rbind(
+    smman_TERM2GENE,
+    dplyr::select(sm_categ, c(all_of(myclm),"Annotation_mod")) %>% setNames(c("description","features")) %>% dplyr::filter( ! grepl("^\\s*$", description) & !is.na(description)) %>% arrange(description)
+  )
+}
+
+
+# stool species
+ss = read.csv("final_obj_files_20230105/data_files/stool-metagenomics/metaphlan3_species_feature_metadata.csv")
+#mapped_names[["stoolMetab"]] = ss %>% `rownames<-`(ss$species_name) %>% dplyr::select(c("species_name","family_name"))
+ss_TERM2GENE = dplyr::select(ss, c("family_name","species_name")) %>% setNames(c("description","features"))
+ss_gen_TERM2GENE = dplyr::select(ss, c("genus_name","species_name")) %>% setNames(c("description","features"))
+ss_ord_TERM2GENE = dplyr::select(ss, c("order_name","species_name")) %>% setNames(c("description","features"))
+
+
+
+# cytof
+cyt_annot = read.csv("final_obj_files_20230105/data_files/cytof/CyTOF_CyComb_Cluster_Annotation.csv")
+cyt_TERM2GENE = mutate(cyt_annot, features = paste0(cluster,".",landmark), description = celltype) %>% dplyr::select(description, features)
+
+
+# C5 bp
+#c5bp_gmt = fgsea::gmtPathways("final_obj_files_20230105/c5.go.bp.v2022.1.Hs.symbols.gmt")
+#c5bp_TERM2GENE = data.frame()
+#for(p in names(c5bp_gmt)) {
+#    c5bp_TERM2GENE = rbind(c5bp_TERM2GENE, data.frame(description=p, gene_name=c5bp_gmt[[p]]) )
+#}
+
+
+# C7
+c7_gmt = fgsea::gmtPathways("final_obj_files_20230105/c7.all.v2022.1.Hs.symbols.gmt")
+c7_TERM2GENE = data.frame()
+for(p in names(c7_gmt)) {
+    c7_TERM2GENE = rbind(c7_TERM2GENE, data.frame(description=p, gene_name=c7_gmt[[p]]) )
+}
+
+
+# Hallmark
+hallm_gmt = fgsea::gmtPathways("final_obj_files_20230105/h.all.v2022.1.Hs.symbols.gmt")
+hallm_TERM2GENE = data.frame()
+for(p in names(hallm_gmt)) {
+    hallm_TERM2GENE = rbind(hallm_TERM2GENE, data.frame(description=p, gene_name=hallm_gmt[[p]]) )
+}
+
+# KEGG
+kegg_gmt = fgsea::gmtPathways("final_obj_files_20230105/c2.cp.kegg.v2022.1.Hs.symbols.gmt")
+kegg_TERM2GENE = data.frame()
+for(p in names(kegg_gmt)) {
+    kegg_TERM2GENE = rbind(kegg_TERM2GENE, data.frame(description=p, gene_name=kegg_gmt[[p]]) )
+}
+
+
+# KEGG from kegg.jp
+keggjp_TERM2GENE = read.table("final_obj_files_20230105/pathway2gene.tsv", sep = "\t") %>% setNames(c("description","gene_name"))
+keggjp_TERM2GENE$description = paste0("Kegg_", keggjp_TERM2GENE$description)
+
+
+```
+
+
+
+
+
+
+```{r mHG enrichment analysis }
+
+
+pathway_databases = list(
+  cytof_coarse = list("TERM2GENE" = cyt_TERM2GENE, class = "cytof"),
+  microb_family = list("TERM2GENE" = ss_TERM2GENE, class = "stoolSpecies"),
+  microb_genus = list("TERM2GENE" = ss_gen_TERM2GENE, class = "stoolSpecies"),
+  microb_order = list("TERM2GENE" = ss_ord_TERM2GENE, class = "stoolSpecies"),
+  metab_supclass = list("TERM2GENE" = smsuper_TERM2GENE, class = "metabolomics"),
+  metab_class = list("TERM2GENE" = smclass_TERM2GENE, class = "metabolomics"),
+  metab_subclass = list("TERM2GENE" = smsub_TERM2GENE, class = "metabolomics"),
+  metab_p1 = list("TERM2GENE" = smp1_TERM2GENE, class = "metabolomics"),
+  metab_manual = list("TERM2GENE" = smman_TERM2GENE, class = "metabolomics"),
+  #c5bp = list("TERM2GENE" = c5bp_TERM2GENE, class = "gene expression"),
+  hallmark = list("TERM2GENE" = hallm_TERM2GENE, class = "gene expression"),
+  #kegg = list("TERM2GENE" = kegg_TERM2GENE, class = "gene expression")
+  keggjp = list("TERM2GENE" = keggjp_TERM2GENE, class = "gene expression")
+)
+
+
+#Using this to save the objects needed for mHG tests. I ran mHG tests using a separate R script as a slurm job, instead of running the below code through Rstudio.
+#save(pathway_databases,dataset_lbls,model.t,dataset_class,obj,feature_selectionI,mf,mgh_test_wrapper,run_mHG,file = "temp.RData")
+
+
+
+#pathway_databases = list(
+#  c5bp = list("TERM2GENE" = c5bp_TERM2GENE, class = "gene expression"),
+#  c7 = list("TERM2GENE" = c7_TERM2GENE, class = "gene expression")
+#)
+
+
+#Using this to save the objects needed for mHG tests for C5 and C7 for F1 and F3. I ran mHG tests using a separate R script (202008_.._XHLT2/data/integration/mhg_c5-c7_afterCorr_script.R) as a slurm job, instead of running the below code through Rstudio.
+#save(pathway_databases,dataset_lbls,model.t,dataset_class,obj,feature_selectionI,mf,mgh_test_wrapper,run_mHG,file = "temp.RData")
+
+pval_afterCorr = T
+
+if(pval_afterCorr) {
+  erf = gsub(".hdf5","_mHG_afterCorr0.1.rds", mf)
+} else {
+  erf = gsub(".hdf5","_mHG.rds", mf)
+}
+
+
+
+if(file.exists(erf)) { # Load the mHG test results if the object already calculated.
+  enrichment_results = readRDS(erf)
+} else { # If mHG tests haven't been run yet, do that now and save the output in an RDS.
+  model_tmp = model.t
+  enrichment_results = list()
+  for(select_factor in 1:nfactor) {
+    factor_lbl = paste0("Factor",select_factor)
+    enrichment_results[[factor_lbl]] = list()
+    
+    for(db in names(pathway_databases)) {
+      TERM2GENE = pathway_databases[[db]]$TERM2GENE
+      db_class = pathway_databases[[db]]$class
+      enrichment_results[[factor_lbl]][[db]] = list()
+    
+      for(d in dataset_lbls) {
+        d_class = dataset_class[d,]
+        if(! (d_class == db_class | d == db_class) )
+          next
+        
+        cat("Processing factor:", select_factor, "; db:", db, "; d:", d, "\n")
+  
+        w = obj$weights.noOutl[[d]]
+        pval = obj$projection_pval[[d]]
+        
+        mofa_weights_vec = w[,select_factor, drop=F] %>% data.frame() %>% rownames_to_column("rn") %>% deframe()
+        signif_feat_names = names(
+          feature_selectionI(
+            list(d = w[,select_factor,drop=F]), 
+            list(d = pval[,select_factor,drop=F]), 
+            FEWR = 0.1, 
+            edge_thr = 0.1, return_pvals = F, use_fdr = T)[[1]]
+          )
+        
+        enrichment_results[[factor_lbl]][[db]][[d]] = run_mHG(signif_feat_names, mofa_weights_vec, TERM2GENE)
+      }
+      saveRDS(enrichment_results, erf)
+    }
+  }
+}
+
+
+
+
+### Combine enrichment results across databases.
+enrichment_results_mod = list()
+enrichment_results_tbl_mod = list()
+for(f in names(enrichment_results)) {
+  enrichment_results_mod[[f]] = list()
+  enrichment_results_tbl_mod[[f]] = list()
+  tmp = enrichment_results[[f]]
+  for(db in names(tmp)) {
+    tmp2 = tmp[[db]]
+    for(d in names(tmp2)) {
+      tmp3 = tmp2[[d]]
+      if(is.null(enrichment_results_mod[[f]][[d]])) {
+        enrichment_results_mod[[f]][[d]] = list(pos=data.frame(), neg=data.frame(), combined=data.frame())
+        enrichment_results_tbl_mod[[f]][[d]] = data.frame()
+      }
+      if(!is.null(tmp3$combined) && nrow(tmp3$combined) > 0) {
+        tmp3$pos$db = db
+        tmp3$neg$db = db
+        tmp3$combined$db = db
+        enrichment_results_mod[[f]][[d]]$pos = rbind(enrichment_results_mod[[f]][[d]]$pos, tmp3$pos)
+        enrichment_results_mod[[f]][[d]]$neg = rbind(enrichment_results_mod[[f]][[d]]$neg, tmp3$neg)
+        enrichment_results_mod[[f]][[d]]$combined = rbind(enrichment_results_mod[[f]][[d]]$combined, tmp3$combined)
+        enrichment_results_tbl_mod[[f]][[d]] = rbind(enrichment_results_tbl_mod[[f]][[d]], tmp3$combined)
+      }
+    }
+  }
+}
+if(pval_afterCorr) {
+  obj$enrichment_results_mod_afterCorr = enrichment_results_mod
+} else {
+  obj$enrichment_results_mod = enrichment_results_mod
+}
+
+
+#### Collect significant terms and calculate composite scores for all of them and save in obj.
+qval_cutoff = 0.1
+obj$all_sig_terms_afterCorr = list()
+obj$all_sig_term_composites_afterCorr = list()
+for(f in paste0("Factor",1:nfactor)) {
+  # Collect all significant terms and save in obj
+  all_sig_terms = c()
+  for(ds in names(obj$enrichment_results_mod_afterCorr[[f]])) {
+    res_tbl = obj$enrichment_results_mod_afterCorr[[f]][[ds]]$combined
+    res_tbl = res_tbl[res_tbl$qvalues < qval_cutoff,]
+    all_sig_terms = unique(c(all_sig_terms, res_tbl$Description))
+  }
+  obj$all_sig_terms_afterCorr[[f]] = all_sig_terms
+  # Calculate composite scores for all significant terms and save in obj
+  obj$all_sig_term_composites_afterCorr[[f]] = list()
+  select_term_composite = list()
+  for(term in all_sig_terms) {
+      #cat(f, term, "\n")
+      select_term_composite[[term]] = composite_feature_creation(obj, obj$enrichment_results_mod_afterCorr, f, term, "combined", qval_cutoff = qval_cutoff)
+  }
+  obj$all_sig_term_composites_afterCorr[[f]] = select_term_composite
+}
+
+of = gsub(".hdf5","_final_object_v1.rds",mf)
+saveRDS(obj, of)
+
+
+
+if(pval_afterCorr) {
+  file = paste0("mHG_enrichment_results_by_jointpval_factor", nfactor, "_afterCorr0.1.pdf")
+} else {
+  file = paste0("mHG_enrichment_results_by_jointpval_factor", nfactor, ".pdf")
+}
+pdf(file, width=12, height=12)
+for(i in 1:15) { print(enrichment_dotplot_v3(enrichment_results_mod[[i]], pval.adj.cutoff = 0.1, max_pathway = 50, title = paste0("Factor",i) )) }
+dev.off()
+
+
+if(pval_afterCorr) {
+  file = paste0("mHG_enrichment_results_top20term_factor", nfactor, "_afterCorr0.1.pdf")
+} else {
+  file = paste0("mHG_enrichment_results_top20term_factor", nfactor, ".pdf")
+}
+pdf(file, width=12, height=30)
+for(i in 1:15) { print(enrichment_dotplot_v3(enrichment_results_mod[[i]], pval.adj.cutoff = 0.1, topN_per_dataset = 20, title = paste0("Factor",i) )) }
+dev.off()
+
+
+
+```
+
+
+```{r mHG enrichment analysis for modified 3 signatures}
+mod_hallm_term2gene = rbind(
+  data.frame(
+    pathway = "mod_inflammatory_resp",
+    gene_name = hallm_gmt$HALLMARK_INFLAMMATORY_RESPONSE[ ! hallm_gmt$HALLMARK_INFLAMMATORY_RESPONSE %in% c(hallm_gmt$HALLMARK_INTERFERON_ALPHA_RESPONSE, hallm_gmt$HALLMARK_INTERFERON_GAMMA_RESPONSE) ]
+    ),
+  data.frame(
+    pathway = "mod_ifn_alpha_wo_inflam_resp",
+    gene_name = hallm_gmt$HALLMARK_INTERFERON_ALPHA_RESPONSE[ ! hallm_gmt$HALLMARK_INTERFERON_ALPHA_RESPONSE %in% c(hallm_gmt$HALLMARK_INFLAMMATORY_RESPONSE) ]
+    ),
+  data.frame(
+    pathway = "mod_ifn_gamma_wo_inflam_resp",
+    gene_name = hallm_gmt$HALLMARK_INTERFERON_GAMMA_RESPONSE[ ! hallm_gmt$HALLMARK_INTERFERON_GAMMA_RESPONSE %in% c(hallm_gmt$HALLMARK_INFLAMMATORY_RESPONSE) ]
+    )
+)
+
+pathway_databases_mod = list(
+  mod_hallmark = list("TERM2GENE" = mod_hallm_term2gene, class = "gene expression"))
+
+
+model_tmp = obj$model.noOutl
+enrichment_results = list()
+for(select_factor in c(1,3)) {
+  factor_lbl = paste0("Factor",select_factor)
+  enrichment_results[[factor_lbl]] = list()
+  
+  for(db in names(pathway_databases_mod)) {
+    TERM2GENE = pathway_databases_mod[[db]]$TERM2GENE
+    db_class = pathway_databases_mod[[db]]$class
+    enrichment_results[[factor_lbl]][[db]] = list()
+  
+    for(d in dataset_lbls) {
+      d_class = dataset_class[d,]
+      if(! (d_class == db_class | d == db_class) )
+        next
+      
+      cat("Processing factor:", select_factor, "; db:", db, "; d:", d, "\n")
+  
+      w = obj$weights.noOutl[[d]]
+      pval = obj$projection_pval[[d]]
+      
+      mofa_weights_vec = w[,select_factor, drop=F] %>% data.frame() %>% rownames_to_column("rn") %>% deframe()
+      signif_feat_names = names(
+        feature_selectionI(
+          list(d = w[,select_factor,drop=F]), 
+          list(d = pval[,select_factor,drop=F]), 
+          FEWR = 0.1, 
+          edge_thr = 0.1, return_pvals = F, use_fdr = T)[[1]]
+        )
+      enrichment_results[[factor_lbl]][[db]][[d]] = run_mHG(signif_feat_names, mofa_weights_vec, TERM2GENE)
+    }
+  }
+}
+
+### Combine enrichment results across databases.
+enrichment_results_mod = list()
+for(f in names(enrichment_results)) {
+  enrichment_results_mod[[f]] = list()
+  tmp = enrichment_results[[f]]
+  for(db in names(tmp)) {
+    tmp2 = tmp[[db]]
+    for(d in names(tmp2)) {
+      tmp3 = tmp2[[d]]
+      if(is.null(enrichment_results_mod[[f]][[d]])) {
+        enrichment_results_mod[[f]][[d]] = list(pos=data.frame(), neg=data.frame(), combined=data.frame())
+      }
+      if(!is.null(tmp3$combined) && nrow(tmp3$combined) > 0) {
+        tmp3$pos$db = db
+        tmp3$neg$db = db
+        tmp3$combined$db = db
+        enrichment_results_mod[[f]][[d]]$pos = rbind(enrichment_results_mod[[f]][[d]]$pos, tmp3$pos)
+        enrichment_results_mod[[f]][[d]]$neg = rbind(enrichment_results_mod[[f]][[d]]$neg, tmp3$neg)
+        enrichment_results_mod[[f]][[d]]$combined = rbind(enrichment_results_mod[[f]][[d]]$combined, tmp3$combined)
+      }
+    }
+  }
+}
+
+
+
+
+## Combining the enrichment of original pathways and the new gene lists.
+enrichment_results_mod_combined = list(
+  "Factor1" = sapply(names(enrichment_results_mod$Factor1),
+                     function(x) {
+                       tmp_df = rbind(
+                         enrichment_results_mod$Factor1[[x]]$combined,
+                         obj$enrichment_results_mod_afterCorr$Factor1[[x]]$combined)
+                       tmp_df[ grepl("hallmark", tmp_df$db), ]$p.adj = p.adjust(tmp_df[ grepl("hallmark", tmp_df$db), ]$p.adj, "BH")
+                       tmp_df$qvalues = tmp_df$p.adj
+                       list(list(combined = tmp_df
+                         ))
+                     }),
+  "Factor3" = sapply(names(enrichment_results_mod$Factor3),
+                     function(x) {
+                       tmp_df = rbind(
+                         enrichment_results_mod$Factor3[[x]]$combined,
+                         obj$enrichment_results_mod_afterCorr$Factor3[[x]]$combined)
+                       tmp_df[ grepl("hallmark", tmp_df$db), ]$p.adj = p.adjust(tmp_df[ grepl("hallmark", tmp_df$db), ]$p.adj, "BH")
+                       tmp_df$qvalues = tmp_df$p.adj
+                       list(list(combined = tmp_df
+                         ))
+                     })  
+)
+
+
+# Calculate composite scores for the selected signatures from original enrichment and the enrichment of modified gene sets.
+select_terms = c("HALLMARK_TNFA_SIGNALING_VIA_NFKB","HALLMARK_TGF_BETA_SIGNALING", unique(mod_hallm_term2gene$pathway))
+qval_cutoff = 0.1
+select_term_composite = list()
+for(f in paste0("Factor",c(1,3))) {
+  # Collect all significant terms and save in obj
+  all_sig_terms = c()
+  for(ds in names(enrichment_results_mod_combined[[f]])) {
+    res_tbl = enrichment_results_mod_combined[[f]][[ds]]$combined
+    res_tbl = res_tbl[res_tbl$qvalues < qval_cutoff,]
+    all_sig_terms = intersect( unique(c(all_sig_terms, res_tbl$Description)), select_terms)
+  }
+  # Calculate composite scores for all significant terms and save in obj
+  select_term_composite[[f]] = list()
+  select_term_composite_tmp = list()
+  for(term in all_sig_terms) {
+      select_term_composite_tmp[[term]] = composite_feature_creation(obj, enrichment_results_mod_combined, f, term, "combined", qval_cutoff = qval_cutoff)
+  }
+  select_term_composite[[f]] = select_term_composite_tmp
+}
+
+obj$enrichment_results_mod_afterCorr_withModSignatures = list(
+  mod_hallm_term2gene,
+  pathway_databases_mod,
+  enrichment_results,
+  enrichment_results_mod,
+  enrichment_results_mod_combined,
+  select_term_composite
+) %>% setNames(
+  c(
+    "mod_hallm_term2gene",
+  "pathway_databases_mod",
+  "enrichment_results",
+  "enrichment_results_mod",
+  "enrichment_results_mod_combined",
+  "select_term_composite"
+  )
+)
+
+
+of = gsub(".hdf5","_final_object_v1.rds",mf)
+saveRDS(obj, of)
+
+
+```
+
+
+
+```{r mHG enrichment analysis for Tonic Chronic signatures}
+
+
+ifn_sig = read.table("tonic_interferon_signatures.tsv" ) %>% setNames(c("pathway","gene_name"))
+
+pathway_databases_mod = list(
+    ifn_sig = list("TERM2GENE" = ifn_sig, class = "gene expression"))
+
+
+model_tmp = obj$model.noOutl
+enrichment_results = list()
+for(select_factor in c(1,3)) {
+    factor_lbl = paste0("Factor",select_factor)
+    enrichment_results[[factor_lbl]] = list()
+    
+    for(db in names(pathway_databases_mod)) {
+        TERM2GENE = pathway_databases_mod[[db]]$TERM2GENE
+        db_class = pathway_databases_mod[[db]]$class
+        enrichment_results[[factor_lbl]][[db]] = list()
+        
+        for(d in dataset_lbls) {
+            d_class = dataset_class[d,]
+            if(! (d_class == db_class | d == db_class) )
+                next
+            
+            cat("Processing factor:", select_factor, "; db:", db, "; d:", d, "\n")
+            
+            w = obj$weights.noOutl[[d]]
+            pval = obj$projection_pval[[d]]
+            
+            mofa_weights_vec = w[,select_factor, drop=F] %>% data.frame() %>% rownames_to_column("rn") %>% deframe()
+            signif_feat_names = names(
+                feature_selectionI(
+                    list(d = w[,select_factor,drop=F]), 
+                    list(d = pval[,select_factor,drop=F]), 
+                    FEWR = 0.1, 
+                    edge_thr = 0.1, return_pvals = F, use_fdr = T)[[1]]
+            )
+            enrichment_results[[factor_lbl]][[db]][[d]] = run_mHG(signif_feat_names, mofa_weights_vec, TERM2GENE)
+        }
+    }
+}
+
+### Combine enrichment results across databases.
+enrichment_results_mod = list()
+for(f in names(enrichment_results)) {
+    enrichment_results_mod[[f]] = list()
+    tmp = enrichment_results[[f]]
+    for(db in names(tmp)) {
+        tmp2 = tmp[[db]]
+        for(d in names(tmp2)) {
+            tmp3 = tmp2[[d]]
+            if(is.null(enrichment_results_mod[[f]][[d]])) {
+                enrichment_results_mod[[f]][[d]] = list(pos=data.frame(), neg=data.frame(), combined=data.frame())
+            }
+            if(!is.null(tmp3$combined) && nrow(tmp3$combined) > 0) {
+                tmp3$pos$db = db
+                tmp3$neg$db = db
+                tmp3$combined$db = db
+                enrichment_results_mod[[f]][[d]]$pos = rbind(enrichment_results_mod[[f]][[d]]$pos, tmp3$pos)
+                enrichment_results_mod[[f]][[d]]$neg = rbind(enrichment_results_mod[[f]][[d]]$neg, tmp3$neg)
+                enrichment_results_mod[[f]][[d]]$combined = rbind(enrichment_results_mod[[f]][[d]]$combined, tmp3$combined)
+            }
+        }
+    }
+}
+
+# Calculate composite scores for the selected signatures from original enrichment and the enrichment of modified gene sets.
+select_terms = unique(ifn_sig$pathway)
+qval_cutoff = 0.1
+select_term_composite = list()
+for(f in paste0("Factor",c(1,3))) {
+  # Collect all significant terms and save in obj
+  all_sig_terms = c()
+  for(ds in names(enrichment_results_mod[[f]])) {
+    res_tbl = enrichment_results_mod[[f]][[ds]]$combined
+    res_tbl = res_tbl[res_tbl$qvalues < qval_cutoff,]
+    all_sig_terms = intersect( unique(c(all_sig_terms, res_tbl$Description)), select_terms)
+  }
+  # Calculate composite scores for all significant terms and save in obj
+  select_term_composite[[f]] = list()
+  select_term_composite_tmp = list()
+  for(term in all_sig_terms) {
+      select_term_composite_tmp[[term]] = composite_feature_creation(obj, enrichment_results_mod, f, term, "combined", qval_cutoff = qval_cutoff)
+  }
+  select_term_composite[[f]] = select_term_composite_tmp
+}
+
+obj$enrichment_results_mod_afterCorr_IFNSignatures = list(
+  ifn_sig,
+  pathway_databases_mod,
+  enrichment_results,
+  enrichment_results_mod,
+  select_term_composite
+) %>% setNames(c(  "ifn_sig",
+  "pathway_databases_mod",
+  "enrichment_results",
+  "enrichment_results_mod",
+  "select_term_composite"))
+
+
+
+
+of = gsub(".hdf5","_final_object_v1.rds",mf)
+saveRDS(obj, of)
+
+
+
+```
+
+
+
+```{r mHG enrichment analysis in f3 vs f1 high people for select pathways}
+
+# The idea is to find pathways that are enriched in F3 top people compared to F1 top people.
+# limma-voom was used to perform DGE between F3 and F1 top people for all genes detected in scRNAseq and then used the 5000 genes used in MOFA for mHG enrichment analysis for the genes that are significantly DE between F3 and F1 (pval < 0.05). The five + tonic/chronic/acute signatures are used.
+# It was required that more than 10 people in at least one groups had expression profiles. The celltypes that didn't qualify this cutoff were excluded.
+
+n_donor=20
+f1_pos_ids = obj$factors.noOutl %>% as.data.frame() %>% rownames_to_column("donor_id") %>% arrange(Factor1) %>% pull(donor_id) %>% tail(n_donor)
+f1_neg_ids = obj$factors.noOutl %>% as.data.frame() %>% rownames_to_column("donor_id") %>% arrange(Factor1) %>% pull(donor_id) %>% head(n_donor)
+f3_pos_ids = obj$factors.noOutl %>% as.data.frame() %>% rownames_to_column("donor_id") %>% arrange(Factor3) %>% pull(donor_id) %>% tail(n_donor)
+f3_neg_ids = obj$factors.noOutl %>% as.data.frame() %>% rownames_to_column("donor_id") %>% arrange(Factor3) %>% pull(donor_id) %>% head(n_donor)
+
+# Remove the overlapping ones.
+f1_pos_ids_new = f1_pos_ids[!f1_pos_ids %in% f3_pos_ids]
+f3_pos_ids_new = f3_pos_ids[!f3_pos_ids %in% f1_pos_ids]
+
+
+# Select pathways to include
+select_TERM2GENE = rbind( 
+    obj$enrichment_results_mod_afterCorr_withModSignatures$pathway_databases_mod$mod_hallmark$TERM2GENE,
+    hallm_TERM2GENE[hallm_TERM2GENE$description %in% c("HALLMARK_TNFA_SIGNALING_VIA_NFKB","HALLMARK_TGF_BETA_SIGNALING"), ] %>% setNames(c("pathway","gene_name")),
+    obj$enrichment_results_mod_afterCorr_IFNSignatures$pathway_databases_mod$ifn_sig$TERM2GENE)
+
+
+## Use pval < 0.05 to select the features DE between F3 and F1
+f3_vs_f1_mhg = list()
+
+
+# Voom takes the raw counts data, but I am providing batch-corrected normalized counts in linear space, so that I can take advantage of mean-variance relationship calculations. The log-fc calculated in this way are log2 based.
+# I tried using log10-transformed, batch-corrected normalized data directly to lmFit and it gave very similar results. The log-fc in this case are log10 based - same as the input data.
+for(ctype in sc_celltypes) {
+  print(ctype)
+  tdf = rna_exp$preScale[[ctype]]
+  f1_pos_ids_new_tmp = intersect(f1_pos_ids_new, colnames(tdf))
+  f3_pos_ids_new_tmp = intersect(f3_pos_ids_new, colnames(tdf))
+  if( length(f1_pos_ids_new_tmp) > 10  |  length(f3_pos_ids_new_tmp) > 10) {
+    df = 10^(tdf[,c(f1_pos_ids_new_tmp,f3_pos_ids_new_tmp)])-1
+    group = factor(c(rep("f1",length(f1_pos_ids_new_tmp)), rep("f3",length(f3_pos_ids_new_tmp))))
+    design = model.matrix(~0+group)
+    colnames(design) <- gsub("group", "", colnames(design))
+    contr.matrix <- limma::makeContrasts(
+       f3vsf1 = f3-f1, 
+       levels = colnames(design))
+    v = limma::voom(df, design, plot = F)
+    vfit <- limma::lmFit(v, design)
+    vfit <- limma::contrasts.fit(vfit, contrasts=contr.matrix)
+    efit <- limma::eBayes(vfit)
+    res <- limma::topTable(efit, number=1e6, adjust.method="BH")
+
+    mofa_feat = rownames(obj$dataset_list[[ctype]]$group1)
+    res = res[ rownames(res) %in% mofa_feat, ]
+
+    f3_vs_f1_mhg[[ctype]] = run_mHG( rownames(res)[res$P.Value < 0.05], as.matrix(res)[,1], select_TERM2GENE)
+  }
+}
+
+
+
+
+obj$enrichment_results_mod_f3vsf1_selectPathways = list(
+  select_TERM2GENE,
+  f3_vs_f1_mhg
+) %>% setNames(c(  "select_TERM2GENE",
+  "f3_vs_f1_mhg"))
+
+
+
+
+## Use padj < 0.1 to select the features DE between F3 and F1
+f3_vs_f1_mhg = list()
+
+
+# Voom takes the raw counts data, but I am providing batch-corrected normalized counts in linear space, so that I can take advantage of mean-variance relationship calculations. The log-fc calculated in this was are log2 based.
+# I tried using log10-transformed, batch-corrected normalized data directly to lmFit and it gave very similar results. The log-fc in this case are log10 based - same as the input data.
+for(ctype in sc_celltypes) {
+  print(ctype)
+  tdf = rna_exp$preScale[[ctype]]
+  f1_pos_ids_new_tmp = intersect(f1_pos_ids_new, colnames(tdf))
+  f3_pos_ids_new_tmp = intersect(f3_pos_ids_new, colnames(tdf))
+  if( length(f1_pos_ids_new_tmp) > 10  |  length(f3_pos_ids_new_tmp) > 10) {
+    df = 10^(tdf[,c(f1_pos_ids_new_tmp,f3_pos_ids_new_tmp)])-1
+    group = factor(c(rep("f1",length(f1_pos_ids_new_tmp)), rep("f3",length(f3_pos_ids_new_tmp))))
+    design = model.matrix(~0+group)
+    colnames(design) <- gsub("group", "", colnames(design))
+    contr.matrix <- limma::makeContrasts(
+       f3vsf1 = f3-f1, 
+       levels = colnames(design))
+    v = limma::voom(df, design, plot = F)
+    vfit <- limma::lmFit(v, design)
+    vfit <- limma::contrasts.fit(vfit, contrasts=contr.matrix)
+    efit <- limma::eBayes(vfit)
+    res <- limma::topTable(efit, number=1e6, adjust.method="BH")
+
+    mofa_feat = rownames(obj$dataset_list[[ctype]]$group1)
+    res = res[ rownames(res) %in% mofa_feat, ]
+
+    f3_vs_f1_mhg[[ctype]] = run_mHG( rownames(res)[res$adj.P.Val < 0.1], as.matrix(res)[,1], select_TERM2GENE)
+  }
+}
+
+
+
+
+obj$enrichment_results_mod_afterCorr_f3vsf1_selectPathways = list(
+  select_TERM2GENE,
+  f3_vs_f1_mhg
+) %>% setNames(c(  "select_TERM2GENE",
+  "f3_vs_f1_mhg"))
+
+
+
+
+of = gsub(".hdf5","_final_object_v1.rds",mf)
+saveRDS(obj, of)
+
+
+
+
+```
+
+
+
+```{r add plasma olink and metabolomics data to obj}
+############### Find plasma olink and metabolic features associated with factors 1 and 3 ----
+factors = obj$factors.noOutl
+
+otherOmics = list(
+  "plasmaOlink"=t(datasets$plasmaOlink$df %>% setNames(gsub("plasmaOlink_","",colnames(datasets$plasmaOlink$df)))),
+  "plasmaMetab"=t(datasets$plasmaMetab$df %>% setNames(gsub("pmetabAll_","",colnames(datasets$plasmaMetab$df))))
+  )
+otherOmics = lapply(otherOmics,
+  function(x) {
+    x = x[, match(colnames(obj$dataset_list$stoolMetab$group1), colnames(x))]
+    colnames(x) = colnames(obj$dataset_list$stoolMetab$group1)
+    x
+    })
+
+
+dataset_lbls_tmp = names(otherOmics)
+#dataset_lbls_tmp = "citeFreq"
+projection_pval = list()
+projection_coef = list()
+for(d in dataset_lbls_tmp) {
+  print(d)
+  # Select the dataset
+  dataset = otherOmics[[d]]
+  # Get the batches
+  batch = NA
+  # initialize matrices
+  projection_pval[[d]] = matrix(NA, nrow = nrow(dataset), ncol = ncol(factors))
+  projection_coef[[d]] = matrix(NA, nrow = nrow(dataset), ncol = ncol(factors))
+  for(feat_idx in 1:nrow(dataset)) {   # For each feature
+    if(feat_idx %% 500 == 0) {
+      cat("Processed", feat_idx, "features...\n")
+    }
+    for(fac_idx in 1:ncol(factors)) {    # For each factor
+      # Get factor scores and feature values
+      feat = dataset[feat_idx,]
+      fac = factors[,fac_idx]
+      # Remove NA values
+      non_na = names(feat)[ !is.na(feat) & !is.na(fac) ]
+      feat = feat[non_na]
+      fac = fac[non_na]
+      if(! all(is.na(batch))) {   # If batch information is available, account for the batch effect.
+          df = data.frame(fac = fac, feat = feat, batch = batch[non_na])
+          # Quantile normalize feat and fac
+          df[,1:2] = normalize.quantiles(as.matrix(df[,1:2]))
+          # The batch-effect is not a mixed effect. So will just use the linear model with batch term in model matrix
+          #fit = nlme::lme(feat ~ fac, df, ~1|batch)
+          #res = c("coef" = fit$coefficients$fixed[2], "pval" = anova(fit)$"p-value"[2])
+          mm = model.matrix(~ df$fac + df$batch)
+          fit = lm(df$feat ~ mm)
+          s = summary(fit)
+          res = c("coef" = s$coefficients[2,1], "pval" = s$coefficients[2,4])
+      } else{   # If batch information is not available, run
+          df = data.frame(fac = fac, feat = feat)
+          # Quantile normalize feat and fac
+          df[,1:2] = normalize.quantiles(as.matrix(df[,1:2]))
+          fit = lm(feat ~ fac, df)
+          s = summary(fit)
+          res = c("coef" = s$coefficients[2,1], "pval" = s$coefficients[2,4])
+      }
+      projection_coef[[d]][feat_idx, fac_idx] = res[1]
+      projection_pval[[d]][feat_idx, fac_idx] = res[2]
+    }
+  }
+  rownames(projection_coef[[d]]) = rownames(dataset)
+  rownames(projection_pval[[d]]) = rownames(dataset)
+  colnames(projection_coef[[d]]) = colnames(factors)
+  colnames(projection_pval[[d]]) = colnames(factors)
+}
+
+# Combine the mofa weights of mofa datasets and the projection coef of other omics, and combine the projection pvalues of mofa datasets and other omics
+obj$wOtherOmics_weights.noOutl = obj$weights.noOutl
+obj$wOtherOmics_weights.noOutl$plasmaOlink = projection_coef$plasmaOlink
+obj$wOtherOmics_weights.noOutl$plasmaMetab = projection_coef$plasmaMetab
+obj$wOtherOmics_projection_pval = obj$projection_pval
+obj$wOtherOmics_projection_pval$plasmaOlink = projection_pval$plasmaOlink
+obj$wOtherOmics_projection_pval$plasmaMetab = projection_pval$plasmaMetab
+obj$wOtherOmics_dataset_list = obj$dataset_list
+obj$wOtherOmics_dataset_list$plasmaOlink = list(group1 = otherOmics$plasmaOlink)
+obj$wOtherOmics_dataset_list$plasmaMetab = list(group1 = otherOmics$plasmaMetab)
+
+obj$wOtherOmics_signif_features = obj$signif_features
+obj$wOtherOmics_signif_features_afterCorr = obj$signif_features_afterCorr
+
+
+# Append the significant feature
+for(f in 1:nfactor) {
+  w = obj$wOtherOmics_weights.noOutl$plasmaOlink
+  pval = obj$wOtherOmics_projection_pval$plasmaOlink
+  
+  select_factor = f
+  obj$wOtherOmics_signif_features[[paste0("Factor",f)]]$plasmaOlink = (
+      feature_selectionI(
+          list(d = w[,select_factor,drop=F]), 
+          list(d = pval[,select_factor,drop=F]), 
+          FEWR = 0.05,
+          edge_thr = 0.1, return_pvals = F)[[1]]
+  )
+
+  obj$wOtherOmics_signif_features_afterCorr[[paste0("Factor",f)]]$plasmaOlink = (
+      feature_selectionI(
+          list(d = w[,select_factor,drop=F]), 
+          list(d = pval[,select_factor,drop=F]), 
+          FEWR = 0.1,
+          edge_thr = 0.1, return_pvals = F, use_fdr = T)[[1]]
+  )
+
+
+  w = obj$wOtherOmics_weights.noOutl$plasmaMetab
+  pval = obj$wOtherOmics_projection_pval$plasmaMetab
+  
+  obj$wOtherOmics_signif_features[[paste0("Factor",f)]]$plasmaMetab = (
+      feature_selectionI(
+          list(d = w[,select_factor,drop=F]), 
+          list(d = pval[,select_factor,drop=F]), 
+          FEWR = 0.05,
+          edge_thr = 0.1, return_pvals = F)[[1]]
+  )
+
+  obj$wOtherOmics_signif_features_afterCorr[[paste0("Factor",f)]]$plasmaMetab = (
+      feature_selectionI(
+          list(d = w[,select_factor,drop=F]), 
+          list(d = pval[,select_factor,drop=F]), 
+          FEWR = 0.1,
+          edge_thr = 0.1, return_pvals = F, use_fdr = T)[[1]]
+  )
+    
+}
+
+of = gsub(".hdf5","_final_object_v1.rds",mf)
+saveRDS(obj, of)
+
+```
+
+
+
+```{r add survey data to obj}
+
+# Match donor names function
+match_donor_names <- function(x) {
+  x = x[, match(colnames(obj$dataset_list$stoolMetab$group1), colnames(x))]
+  colnames(x) = colnames(obj$dataset_list$stoolMetab$group1)
+  return(x)
+}
+
+for(ds in c("diet","health","exposure","mood","stool","oralcare","demographic")) {
+  obj$wOtherOmics_dataset_list[[ds]] = list(group1 = match_donor_names(survey_datasets[[ds]]))
+}
+
+of = gsub(".hdf5","_final_object_v1.rds",mf)
+saveRDS(obj, of)
+
+```
+
+
+
+```{r add preScale datasets to obj }
+
+#objs = load("final_obj_files_20230105/processed_data_allsamples_2023-05-03.RData")
+
+
+# Match donor names function
+match_donor_names <- function(x) {
+  x = x[, match(colnames(obj$dataset_list$stoolMetab$group1), colnames(x))]
+  colnames(x) = colnames(obj$dataset_list$stoolMetab$group1)
+  return(x)
+}
+
+# Add citeFreq
+cite_freq = table(sobjs_all_both_corr_clust$manual.celltype, sobjs_all_both_corr_clust$donor_id) %>% 
+    data.frame() %>% dplyr::filter(! Var2 %in% c("XHLT2-HS33","XHLT2-HS99")) %>% 
+    #mutate(Var1 = gsub("/","-",Var1)) %>%
+    dplyr::filter(Var1 %in% sc_celltypes) %>%
+    group_by(Var2) %>% mutate(Freq = Freq/sum(Freq)*100) %>% 
+    pivot_wider(names_from = Var1, values_from = Freq) %>% 
+    column_to_rownames("Var2")
+cite_freq_log = log10(cite_freq + 1)
+
+# Add datasets from 'datasets' object
+obj$wOtherOmics_dataset_list_preScale = list(
+  "stoolMetab" = match_donor_names(t(datasets$stoolMetab$df_preScale)) %>% `rownames<-`(str_remove(rownames(.), "smetabAll_")),
+  "asa24" = match_donor_names(t(datasets$asa24$df_preScale)) %>% `rownames<-`(str_remove(rownames(.), "asa24_")),
+  "stoolSpecies" = match_donor_names(t(datasets$stoolSpecies$df_preScale)) %>% `rownames<-`(str_remove(rownames(.), "smicrobSPE_")),
+  "stoolPathAbu" = match_donor_names(t(datasets$stoolPathAbu$df_preScale)) %>% `rownames<-`(str_remove(rownames(.), "smicrobPathAbu_")),
+  "cytof" = match_donor_names(t(datasets$cytofFSClust$df_preScale)) %>% `rownames<-`(str_remove(rownames(.), "cytof_")),
+  "citeFreq" = match_donor_names(t(cite_freq_log))
+)
+
+
+# Add all CITE-seq gene expression datasets
+obj$wOtherOmics_dataset_list_preScale = append(
+  obj$wOtherOmics_dataset_list_preScale,
+  lapply(rna_exp$preScale, match_donor_names)
+  )
+
+# Remove the two cell types that were removed. 'CD4 TEMRA' because it was present only in 9 samples.
+obj$wOtherOmics_dataset_list_preScale$`CD4 TEMRA` = NULL
+obj$wOtherOmics_dataset_list_preScale$Unlabelled = NULL
+
+# Add plasmaOlink and plasmaMetab datasets
+obj$wOtherOmics_dataset_list_preScale[['plasmaOlink']] = match_donor_names(t(datasets$plasmaOlink$df_preScale)) %>% `rownames<-`(str_remove(rownames(.), "plasmaOlink_"))
+obj$wOtherOmics_dataset_list_preScale[['plasmaMetab']] = match_donor_names(t(datasets$plasmaMetab$df_preScale)) %>% `rownames<-`(str_remove(rownames(.), "pmetabAll_"))
+
+# Add all survey data
+for(ds in c("diet","health","exposure","mood","stool","oralcare","demographic")) {
+  obj$wOtherOmics_dataset_list_preScale[[ds]] = match_donor_names(t(datasets[[ds]]$df_preScale))
+}
+
+# Match the feature names for stoolMetab and stoolPathAbu.
+# Load unmodified feature names.
+unmodnames = readRDS("final_obj_files_20230105/unmodnames.rds")
+unmodnames$stoolMetab$unmodnames = gsub("\\s+$", "", unmodnames$stoolMetab$unmodnames)
+rownames(obj$wOtherOmics_dataset_list_preScale$stoolMetab) = 
+  unmodnames$stoolMetab$unmodnames[
+    match(rownames(obj$wOtherOmics_dataset_list_preScale$stoolMetab), unmodnames$stoolMetab$modnames)
+  ]
+rownames(obj$wOtherOmics_dataset_list_preScale$stoolPathAbu) = 
+  unmodnames$stoolPathAbu$unmodnames[
+    match(rownames(obj$wOtherOmics_dataset_list_preScale$stoolPathAbu), unmodnames$stoolPathAbu$modnames)
+  ]
+
+
+# Are all donor names are matched?
+lapply(obj$wOtherOmics_dataset_list_preScale, function(x) {all(colnames(x) == colnames(obj$dataset_list$stoolMetab$group1))}) %>% unlist() %>% all
+
+
+# Are all feature names in obj$wOtherOmics_dataset_list are part of wOtherOmics_dataset_list_preScale?
+for(n in names(obj$wOtherOmics_dataset_list_preScale)){
+  scaled = obj$wOtherOmics_dataset_list[[n]]$group1
+  prescaled = obj$wOtherOmics_dataset_list_preScale[[n]]
+  print(all(rownames(scaled) %in% rownames(prescaled)))
+}
+
+
+
+of = gsub(".hdf5","_final_object_v1.rds",mf)
+saveRDS(obj, of)
+
+```
+
+
+
+```{r read obj}
+of = gsub(".hdf5","_final_object_v1.rds",mf)
+obj = readRDS(of)
+
+```
+
+
+```{r top feature plots}
+
+
+select_factors = paste0("Factor",valid_factors)
+coeff_to_use = "wMofaCoef" # "wProjectionCoef" or "wMofaCoef"
+pdf(paste0("top_feat_",coeff_to_use, "_factor",nfactor,".pdf"), width=140, height=60)
+select_features = list()
+select_features_padj = list()
+select_features_df = data.frame()
+for(f in select_factors ) {
+  factor_loadings_one = list()
+  factor_pvals_one = list()
+  for(d in dataset_lbls) {
+    if(coeff_to_use == "wProjectionCoef") {
+      factor_loadings_one[[d]] = obj$projection_coef[[d]][,f,drop=F]
+    } else {
+      factor_loadings_one[[d]] = obj$weights.noOutl[[d]][,f,drop=F]
+    }
+    factor_pvals_one[[d]] = obj$projection_pval[[d]][,f,drop=F]
+  }
+  select_features[[f]] = feature_selectionI(factor_loadings_one, factor_pvals_one, FEWR = 0.05, edge_thr = 0.1, top_feat = 100, return_pvals = T)
+  select_features_padj[[f]] = feature_selectionI(factor_loadings_one, factor_pvals_one, FEWR = 0.1, edge_thr = 0.1, top_feat = 100, return_pvals = T, use_fdr = T)
+  plotlist = list()
+  for(d in dataset_lbls) {
+    tmp_df = select_features[[f]][[d]] %>% rownames_to_column("feature") # %>% mutate(feature = gsub("^[^_]+_","",feature))
+    tmp_df$feature = factor(tmp_df$feature, levels = (arrange(tmp_df, weight) %>% pull(feature)) )
+    tmp_df$is.sig.padj = select_features_padj[[f]][[d]]$is.sig
+    max_val = max(abs(tmp_df$weight))
+    max_val = max_val + max_val*0.1
+    plotlist[[d]] = ggplot(tmp_df, aes(weight, feature, color=weight)) + 
+      geom_segment( aes(x=0, xend=weight, y=feature, yend=feature), color="black", alpha = 0.05) +
+      geom_point(size=1) + geom_point(data=. %>% dplyr::filter(is.sig), size=3) + geom_point(data=. %>% dplyr::filter(is.sig.padj), size=3, shape=1, color="black", stroke=2) + scale_color_distiller(palette = "RdBu", limits = c( -1*max_val, max_val ) ) +
+      theme_classic() +
+      ggtitle(d) +
+      geom_vline(xintercept = 0, linetype = 2, alpha = 0.25)
+  }
+  p = ggarrange(plotlist = plotlist, ncol=12, nrow=4)
+  print(annotate_figure(p,top = text_grob(f, color = "red", face = "bold", size = 14)))
+  #select_feat_vec = unlist(select_features[[f]])
+  #select_features_df = rbind(select_features_df,
+  #                           data.frame(factor = f, feature = names(select_feat_vec), coeff=select_feat_vec ))
+}
+dev.off()
+
+
+
+
+
+```
+
+
+```{r extracting top and bottom features for joel}
+
+top_nfeat = 25
+select_factors = paste0("Factor",1:nfactor)
+select_features = list()
+for(f in select_factors ) {
+  factor_loadings_one = list()
+  factor_pvals_one = list()
+  for(d in dataset_lbls) {
+    factor_loadings_one[[d]] = obj$weights.noOutl[[d]][,f,drop=F]
+    factor_pvals_one[[d]] = obj$projection_pval[[d]][,f,drop=F]
+  }
+  select_features[[f]] = feature_selectionI(factor_loadings_one, factor_pvals_one, FEWR = 0.001, edge_thr = 0.1, top_feat_by_direction = top_nfeat, return_pvals = T)
+}
+saveRDS(select_features, file = paste0("top_", top_nfeat, "feat_factor",nfactor,".rds"))
+
+
+
+select_factors = paste0("Factor",1:nfactor)
+select_features = list()
+for(f in select_factors ) {
+  factor_loadings_one = list()
+  factor_pvals_one = list()
+  for(d in dataset_lbls) {
+    factor_loadings_one[[d]] = obj$weights.noOutl[[d]][,f,drop=F]
+    factor_pvals_one[[d]] = obj$projection_pval[[d]][,f,drop=F]
+  }
+  select_features[[f]] = feature_selectionI(factor_loadings_one, factor_pvals_one, FEWR = 10, edge_thr = -1, return_pvals = T)
+  for(d in names(select_features[[f]])) {
+    select_features[[f]][[d]] = select_features[[f]][[d]] %>% mutate(is.sig = NULL, padj = p.adjust(pval, method = "BH"))
+  }
+}
+saveRDS(select_features, file = paste0("final_obj_files_20230105/allfeatures_factor",nfactor,".rds"))
+
+
+
+```
+
+```{r heatmap of number of associated features }
+
+pval_cutoff = 0.05
+edge_thr = 0.1
+select_factors = paste0("Factor",valid_factors)
+sig_feature_count = matrix(NA, nrow=length(valid_factors), ncol=length(dataset_lbls), dimnames = list(select_factors, dataset_lbls))
+for(f in select_factors ) {
+  for(d in dataset_lbls) {
+    factor_loadings_one = list()
+    factor_pvals_one = list()
+    factor_loadings_one[[d]] = obj$weights.noOutl[[d]][,f,drop=F]
+    factor_pvals_one[[d]] = obj$projection_pval[[d]][,f,drop=F]
+    sig_feature_count[f,d] = nrow(feature_selectionI(factor_loadings_one, factor_pvals_one, FEWR = pval_cutoff, edge_thr = edge_thr, return_pvals = T)[[1]])
+  }
+}
+
+pdf(paste0("associated_feature_count_factor", nfactor, ".pdf"), width=12, height=6)
+
+ComplexHeatmap::pheatmap(prop.table(sig_feature_count, 2), cluster_rows = F, cluster_cols = F, color = pals::brewer.ylorbr(10), display_numbers = sig_feature_count, number_format = "%.02f", main = "colors by percent; numbers are actual counts")
+
+dev.off()
+
+
+
+
+padj_cutoff = 0.1
+edge_thr = 0.1
+select_factors = paste0("Factor",valid_factors)
+sig_feature_count = matrix(NA, nrow=length(valid_factors), ncol=length(dataset_lbls), dimnames = list(select_factors, dataset_lbls))
+for(f in select_factors ) {
+  for(d in dataset_lbls) {
+    factor_loadings_one = list()
+    factor_pvals_one = list()
+    factor_loadings_one[[d]] = obj$weights.noOutl[[d]][,f,drop=F]
+    factor_pvals_one[[d]] = obj$projection_pval[[d]][,f,drop=F]
+    sig_feature_count[f,d] = nrow(feature_selectionI(factor_loadings_one, factor_pvals_one, FEWR = padj_cutoff, edge_thr = edge_thr, return_pvals = T, use_fdr = T)[[1]])
+  }
+}
+
+pdf(paste0("associated_feature_count_bypadj_factor", nfactor, ".pdf"), width=12, height=6)
+ComplexHeatmap::pheatmap(prop.table(sig_feature_count, 2), cluster_rows = F, cluster_cols = F, color = pals::brewer.ylorbr(10), display_numbers = sig_feature_count, number_format = "%.02f", main = "colors by percent; numbers are actual counts")
+dev.off()
+
+
+
+ComplexHeatmap::pheatmap(t(t(sig_feature_count)/ttl_feat_count[colnames(sig_feature_count)]), cluster_rows = F, cluster_cols = F, color = pals::brewer.ylorbr(10), display_numbers = sig_feature_count, number_format = "%.02f", main = "colors by percent; numbers are actual counts")
+
+
+
+
+```
+
+
+```{r heatmaps of significantly associated features for all datasets and all factors, message=FALSE, warning=FALSE}
+
+pdf("heatmap_all_signif_features.pdf", width=80, height = 60)
+for(i in valid_factors) {
+    plotlist = list()
+    for(ds in dataset_lbls) {
+        top_feat = feature_selectionI(list(ds = obj$weights.noOutl[[ds]][,i,drop=F]), list(ds = obj$projection_pval[[ds]][,i,drop=F]), FEWR = 0.05, edge_thr = 0.1, return_pvals = F)
+        title = paste0("Factor",i,":",ds)
+        if(length(top_feat[[1]]) > 1) {
+            p = make_topFeat_heatmap(model, ds, i, features = names(sort(top_feat[[1]])), addJoelsGrpRug = F, default_colors = T, show_rownames = F, show_colnames = F, title=title, draw_plot = F, use_raster = T)
+        } else {
+            p = ggplot() + geom_blank() + ggtitle(title)
+        }
+        if(class(p) == "Heatmap") {
+            plotlist[[ds]] = grid::grid.grabExpr(ComplexHeatmap::draw(p))
+        } else {
+            plotlist[[ds]] = p
+        }
+    }
+    pp = ggarrange(plotlist = plotlist)
+    print(annotate_figure(pp,top = text_grob(paste0("Factor", i), color = "red", face = "bold", size = 14)))
+}
+dev.off()
+
+
+```
+
+
+
