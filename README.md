@@ -9,18 +9,18 @@ https://www.cell.com/cell/fulltext/S0092-8674(26)00168-6
 ### Description of code
 ```
 src/ (Data analysis code)
-└──  R
-    ├──   CITEseq (CITEseq data analysis: data normalization, batch-correction, GEX-ADT integration, cell clustering, annotation, and pseudobulk gene expression)
-    ├──   cytof (CyTOF data analysis: data normalization, batch-correction, and cell clustering)
-    ├──   integrative_analysis (Integrative analysis)
-    │   ├──   data_preprocessing (Preprocessing of individual modality from baseline and follow-up visit data)
-    │   ├──   dge_analysis (Differential gene expression analysis comparing high and low IMCV and IIV subgroups)
-    |   ├──   functions_chunk.R (R functions used by other scripts)
-    │   ├──   mofa.Rmd (Data preparation and integrative analysis)
-    │   └──   mofa_downstream_analysis.Rmd (MOFA factor interpretation and analysis)
-    ├──   mapping_citeSeq_longitudinal_to_baseline (Mapping CITEseq data from follow-up visit to baseline data)
-    ├──   followup_data_analysis (Downstream analysis of baseline and follow-up visit data)
-    └──   variation_analysis (Immune and microbiome variation analysis)
+└── R
+    ├── CITEseq (CITEseq data analysis: data normalization, batch-correction, GEX-ADT integration, cell clustering, annotation, and pseudobulk gene expression)
+    ├── cytof (CyTOF data analysis: data normalization, batch-correction, and cell clustering)
+    ├── integrative_analysis (Integrative analysis)
+    │   ├── data_preprocessing (Preprocessing of individual modality from baseline and follow-up visit data)
+    │   ├── dge_analysis (Differential gene expression analysis comparing high and low IMCV and IIV subgroups)
+    |   ├── functions_chunk.R (R functions used by other scripts)
+    │   ├── mofa.Rmd (Data preparation and integrative analysis)
+    │   └── mofa_downstream_analysis.Rmd (MOFA factor interpretation and analysis)
+    ├── mapping_citeSeq_longitudinal_to_baseline (Mapping CITEseq data from follow-up visit to baseline data)
+    ├── followup_data_analysis (Downstream analysis of baseline and follow-up visit data)
+    └── variation_analysis (Immune and microbiome variation analysis)
 ```
 
 ### Data availability
