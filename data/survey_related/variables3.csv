@@ -1,0 +1,223 @@
+var,type,desc
+timestamp,na,Timestamp
+id,na,Study ID number
+diet_animal,o,"Does your diet include [Animal products (meat, eggs, fish)]"
+diet_dairy,o,Does your diet include [Dairy products]
+diet_spicy,o,Does your diet include [Spicy food]
+diet_sweet,o,Does your diet include [Sweets (cookies/candies)]
+diet_deepfried,o,Does your diet include [Deep fried food (french fries/donuts/fried chicken/tempura...)]
+diet_fried,o,Does your diet include [Fried food in general]
+diet_peanut,o,Does your diet include [Peanuts (including peanut butter)]
+diet_nut,o,"Does your diet include [Other nuts (cashew, almond, brazil nut...)]"
+cooking_deepfry,o,Cooking process used for the meals you eat [Deep frying (Fries/donuts/fried chicken/tempura...)]
+cooking_panfry,o,Cooking process used for the meals you eat [Pan Frying ]
+cooking_boil,o,Cooking process used for the meals you eat [Boiled or steam cooking]
+cooking_roast,o,Cooking process used for the meals you eat [Oven Roasting/Baking]
+cooking_grill,o,Cooking process used for the meals you eat [Grilling / Barbecuing]
+vegPrep_cooked,o,How often do your meals include...  [cooked vegetables]
+vegPrep_raw,o,How often do your meals include...  [raw vegetables]
+vegProp,c,Proportion of vegetables (in meals that contain some)
+veg_green,o,"Frequency of consuming class of vegetables [Leafy green  (lettuce, spinach and kale, chard)]"
+veg_cruci,o,"Frequency of consuming class of vegetables [Cruciferous (cabbage, cauliflower, Brussels sprouts and broccoli)]"
+veg_marrow,o,"Frequency of consuming class of vegetables [Marrow (pumpkin, cucumber, zucchini, squash)]"
+veg_root,o,"Frequency of consuming class of vegetables [Root  (potato, sweet potato and yam)]"
+veg_stem,o,Frequency of consuming class of vegetables [Edible plant stem (celery and asparagus)]
+veg_allium,o,"Frequency of consuming class of vegetables [Allium (onion, garlic and shallot).]"
+veg_starch,o,"Frequency of consuming class of vegetables [Resistant starches (oat, cold rice, cold potatoe, legumes (lentilles, beans, peas))]"
+drink_soda,o,Do you drink... [regular soda (contains caffeine and sugar)]
+drink_dietSoda,o,Do you drink... [diet or light/low sugar soda]
+drink_cafFreeSoda,o,Do you drink... [caffeine-free soda]
+drink_coffee,o,Do you drink... [coffee]
+drink_tea,o,Do you drink... [tea]
+drink_alcohol,o,Do you drink... [alcoholic beverages]
+drink_milk,o,Do you drink... [milk (from cows)]
+drinkVol_soda,o,"Volumes consumed daily, on a day you would have theses beverages. [Regular soda (contains caffeine and sugar)]"
+drinkVol_dietSoda,o,"Volumes consumed daily, on a day you would have theses beverages. [Diet or light/low sugar soda]"
+drinkVol_cafFreeSoda,o,"Volumes consumed daily, on a day you would have theses beverages. [Caffeine-free soda]"
+drinkVol_coffee,o,"Volumes consumed daily, on a day you would have theses beverages. [Coffee]"
+drinkVol_tea,o,"Volumes consumed daily, on a day you would have theses beverages. [Tea]"
+drinkVol_alcohol,o,"Volumes consumed daily, on a day you would have theses beverages. [Alcoholic beverages]"
+drinkVol_milk,o,"Volumes consumed daily, on a day you would have theses beverages. [Milk (from cows)]"
+alcohol_wine,o,How often do you drink fermented alcoholic beverages [Wine]
+alcohol_beer,o,How often do you drink fermented alcoholic beverages [Beer]
+alcohol_other,o,How often do you drink fermented alcoholic beverages [Other fermented alcoholic beverage]
+alcoholVol_wine,o,"On a day you would have fermented alcoholic beverages, what would be the volume of consumed throughout the day. [Wine]"
+alcoholVol_beer,o,"On a day you would have fermented alcoholic beverages, what would be the volume of consumed throughout the day. [Beer]"
+alcoholVol_other,o,"On a day you would have fermented alcoholic beverages, what would be the volume of consumed throughout the day. [Other fermented alcoholic beverage]"
+alcoholProB_yogurt,o,How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Yogurt with live/active cultures]
+alcoholProB_kombucha,o,How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Kombucha]
+alcoholProB_kefir,o,How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Kefir]
+alcoholProB_kimchi,o,How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Kimchi (fermented cabbage)]
+alcoholProB_miso,o,"How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Miso (fermented barley, rice, soybeans)]"
+alcoholProB_tempeh,o,How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Tempeh (fermented soybeans)]
+alcoholProB_beer,o,How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Unfiltered beer]
+alcoholProB_cheese,o,How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Unpasteurized cheese]
+alcoholProB_probiotic,o,How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Probiotic / prebiotic supplements]
+alcoholProB_other,o,How often do you have at least half a cup of fermented beverages and food that contains probiotics (live and active yeast/bacteria). [Other]
+alcoholOther,x,Do you eat or drink any other fermented food or drink that wasn't listed previously (or indicate none)
+freshFood,o,"How much of what you consume are whole grain and raw fresh vegetables/fruits/meat/fish, prepared/assembled/cooked immediately before a meal (or a couple of meals). Typical range in America is 10 to 40%"
+water_tap,o,How much of your water consumption comes from [Regular tap water]
+water_processed,o,How much of your water consumption comes from [Processed tap water (workplace water dispenser/ Brita Pitcher)) ]
+water_bottle,o,How much of your water consumption comes from [Still bottled water (including worplace water dispenser)]
+water_sparkling,o,How much of your water consumption comes from [Sparkling/carbonated water]
+homemade_breakfast,o,How often do you have home-made meals weakly (1 week includes 7 meals of each kind) for ... [ breakfast ]
+homemade_lunch,o,How often do you have home-made meals weakly (1 week includes 7 meals of each kind) for ... [ lunch]
+homemade_dinner,o,How often do you have home-made meals weakly (1 week includes 7 meals of each kind) for ... [dinner]
+snack_fruits,o,How often do you snack... [fruits]
+snack_sweet,o,How often do you snack... [sweets (cookies / cakes / pies)]
+snack_savoury,o,How often do you snack... [savoury snacks (chips / cheetos / Fritos)]
+snack_veg,o,How often do you snack... [vegetables]
+commercial,o,"How much of what you eat is commercially processed [bread and pastries, cheese, processed meat (ground beef, sausage, ham), snacks, pastas/noodles, convenience food, fast food, tinned/canned food, granola, flours, juices, milk)]. Typical range in America is 60 to 90% "
+commercialContent,nm,Do you systematically select food based on the following labels (check all that apply):
+mealChoice,nm,Would you describe most of your meals being... (check all that apply)
+dietPlan,n,Do you use a specific/standardized diet plan
+foodVendor,nm,Where do you purchase most of your food
+skipMeal,nm,Do you regularly skip meals
+brushTeeth,o,How often do you brush your teeth ?
+toothpaste,nm,Do you use toothpaste specifically ... (check all that apply)
+oral_mouthwash,o,Do you use... [oral lotions / mouthwashs]
+oral_chewgum,o,Do you use... [chewing gum]
+oral_freshner,o,Do you use... [breath freshener]
+oral_floss,o,Do you use... [floss]
+oral_interdental,o,Do you use... [interdental brushes]
+oralDisease,nm,Do you have... (check all that apply)
+bodyLotion,nm,Do you regularly use any body lotion / moisturizer on ... (check all that apply)
+shower,o,How often do you shower
+bodyProduct,nm,Do you use any ... (check all that apply) [body care product specifically labeled...]
+laundrySoap,nm,Do you use any ... (check all that apply) [laundry soap specifically labeled...]
+bodyProductOther,x,"Do you use any particular body care product frequently (Example: Aloe vera, cocoa butter, lavender essential oil,...) on a large (>30%) part of your skin  (or indicate none)"
+swim,o,Do you practice swimming in a swimming pool
+expoPet_toddler,nm,Exposition to pets [As a toddler (0 to 4 years old)]
+expoPet_growingup,nm,Exposition to pets [When groing up]
+expoPet_currently,nm,Exposition to pets [Currently]
+smoke_cigarette,o,Quantify the total time you have regularly inhaled tobacco through... [cigarette]
+smoke_secondhandCigarette,o,Quantify the total time you have regularly inhaled tobacco through... [secondhand cigarette smoke from a familly member or partner]
+smoke_cigar,o,Quantify the total time you have regularly inhaled tobacco through... [cigar]
+smoke_pipe,o,Quantify the total time you have regularly inhaled tobacco through... [pipe]
+smoke_eCigarette,o,Quantify the total time you have regularly inhaled tobacco through... [e-cigarette]
+smoke_marijuana,o,Quantify the total time you have regularly inhaled tobacco through... [marijuana or cannabis]
+smoke_other,o,Quantify the total time you have regularly inhaled tobacco through... [other]
+smokeFree_cigarette,o,"If you have been exposed to smoke in the past, how long have you been smoke-free... [cigarette]"
+smokeFree_secondhandCigarette,o,"If you have been exposed to smoke in the past, how long have you been smoke-free... [secondhand cigarette smoke from a familly member or partner]"
+smokeFree_cigar,o,"If you have been exposed to smoke in the past, how long have you been smoke-free... [cigar]"
+smokeFree_pipe,o,"If you have been exposed to smoke in the past, how long have you been smoke-free... [pipe]"
+smokeFree_eCigarette,o,"If you have been exposed to smoke in the past, how long have you been smoke-free... [e-cigarette]"
+smokeFree_marijuana,o,"If you have been exposed to smoke in the past, how long have you been smoke-free... [marijuana or cannabis]"
+smokeFree_other,o,"If you have been exposed to smoke in the past, how long have you been smoke-free... [other]"
+nCigarette,c,"If you smoke regularly, or have smocked in the past, how many cigarettes (or equivalent) daily on average?"
+countriesChild,x,List all the countries in which you have spent more than 2 years as a child outside of the USA (if known)
+countriesFirst2yr,x,Country you have spent your first 2 years of life (or indicate unknown)
+countriesAdult5yr,x,List all the countries in which you have spent more than 5 years as an adult 
+inUSAFor,c,How long have you been living in the USA
+countriesEver,x,List all the countries you have visited outside of the USA (or indicate none)
+countriesLast12mo,x,list the all countries you have visited in the last 12 month (or indicate none)
+stoolCurr,o,Rate your current stool consistency
+stoolUsual,o,Rate your usual stool consistency
+diarrhea,o,Do you have episodes of mild diarrhea 
+diarrheaCause,nm,"If you have episodes of mild diarrhea, have you noticed any of these to be a trigger (check all that apply)"
+healthy,nm,Please confirm that ...
+autoImmune,x,List any auto-immune disorder or syndrome you have ever been diagnosed with (or indicate none)
+metabDisease,nm,Have you been diagnosed with...
+allergy,x,Describe any allergy you have (or indicate none)
+skinRash,x,Describe any skin rash you have (or indicate none)
+viralDisease,x,"Describe virus positivity( common virus you have been tested positive for (Cytomegalovirus (CMV), Herpes simplex virus (HSV), Human  papillomavirus (HPV), Circovirus (TTV),...) (or indicate none)"
+commonProb_cold,o,Describe frequency of ... [common head cold]
+commonProb_flu,o,Describe frequency of ... [stomach flu]
+commonProb_urinary,o,Describe frequency of ... [urinary/urethral infection]
+medPast_antiInflam,o,"When was the last time you used... [nonsteroidal anti-inflammatory drugs [Ibuprofen, Naproxen, Aspirin,...]]"
+medPast_corticosteroids,o,"When was the last time you used... [corticosteroids [Celestone, Prednisone Intensol,Orapred, Prelone, Florinef, Kenalog, ...])]"
+medPast_allergyMed,o,"When was the last time you used... [allergy symptom relief medication [Benadryl,Allegra,Claritin,Zyrtec, ...]]"
+medPast_immSupressive,o,When was the last time you used... [immunosupressive drugs]
+medPast_antibiotics,o,When was the last time you used... [antibiotics]
+medPast_ironSuppl,o,When was the last time you used... [iron supplements]
+medPast_vitamineSuppl,o,When was the last time you used... [vitamines supplements]
+medPast_painKiller,o,When was the last time you used... [pain killers - non steroid]
+medPast_antidepressantSSRI,o,When was the last time you used... [SSRI antidepressants]
+medPast_antidepressantOther,o,When was the last time you used... [antidepressants other than SSRI]
+medPast_birthControl,o,When was the last time you used... [birth control medication (including IUD)]
+medPast_prediabetesMed,o,When was the last time you used... [prediabetes medication [metformin]]
+medPast_PPI,o,"When was the last time you used... [proton-pump inhibotors (PPI) [Omeprazole, lansoprazole, Pantaprazole,...]]"
+medPast_antiviral,o,"When was the last time you used... [anti-viral/prep [Truvada, Acyclovir,...]]"
+medPast_marijuana,o,When was the last time you used... [marijuana / canabis]
+medCurr_antiInflam,o,"Regarding your current medication, indicate how long you have been using... [nonsteroidal anti-inflammatory drugs [Ibuprofen, Naproxen, Aspirin,...]]"
+medCurr_corticosteroids,o,"Regarding your current medication, indicate how long you have been using... [corticosteroids [Celestone, Prednisone Intensol,Orapred, Prelone, Florinef, Kenalog, ...])]"
+medCurr_allergyMed,o,"Regarding your current medication, indicate how long you have been using... [allergy symptom relief medication [Benadryl,Allegra,Claritin,Zyrtec, ...]]"
+medCurr_immSupressive,o,"Regarding your current medication, indicate how long you have been using... [immunosupressive drugs]"
+medCurr_antibiotics,o,"Regarding your current medication, indicate how long you have been using... [antibiotics]"
+medCurr_ironSuppl,o,"Regarding your current medication, indicate how long you have been using... [iron supplements]"
+medCurr_vitamineSuppl,o,"Regarding your current medication, indicate how long you have been using... [vitamines supplements]"
+medCurr_painKiller,o,"Regarding your current medication, indicate how long you have been using... [pain killers - non steroid]"
+medCurr_antidepressantSSRI,o,"Regarding your current medication, indicate how long you have been using... [SSRI antidepressants]"
+medCurr_antidepressantOther,o,"Regarding your current medication, indicate how long you have been using... [antidepressants other than SSRI]"
+medCurr_birthControl,o,"Regarding your current medication, indicate how long you have been using... [birth control medication (including IUD)]"
+medCurr_prediabetesMed,o,"Regarding your current medication, indicate how long you have been using... [prediabetes medication [metformin]]"
+medCurr_PPI,o,"Regarding your current medication, indicate how long you have been using... [proton-pump inhibotors (PPI)[Omeprazole, lansoprazole, Pantaprazole,...]]"
+medCurr_antiviral,o,"Regarding your current medication, indicate how long you have been using... [anti-viral/prep [Truvada, Acyclovir,...]]"
+medCurr_marijuana,o,"Regarding your current medication, indicate how long you have been using... [marijuana / canabis]"
+medCurrPattern_antiInflam,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [nonsteroidal anti-inflammatory drugs [Ibuprofen, Naproxen, Aspirin,...]]"
+medCurrPattern_corticosteroids,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [corticosteroids [Celestone, Prednisone Intensol,Orapred, Prelone, Florinef, Kenalog, ...])]"
+medCurrPattern_allergyMed,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [allergy symptom relief medication [Benadryl,Allegra,Claritin,Zyrtec, ...]]"
+medCurrPattern_immSupressive,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [immunosupressive drugs]"
+medCurrPattern_antibiotics,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [antibiotics]"
+medCurrPattern_ironSuppl,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [iron supplements]"
+medCurrPattern_vitamineSuppl,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [vitamines supplements]"
+medCurrPattern_painKiller,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [pain killers - non steroid]"
+medCurrPattern_antidepressantSSRI,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [SSRI antidepressants]"
+medCurrPattern_antidepressantOther,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [Antidepressants other than SSRI]"
+medCurrPattern_prediabetesMed,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [prediabetes medication [metformin]]"
+medCurrPattern_PPI,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [proton-pump inhibotors (PPI)[Omeprazole, lansoprazole, Pantaprazole,...]]"
+medCurrPattern_antiviral,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [anti-viral/prep [Truvada, Acyclovir,...]]"
+medCurrPattern_marijuana,o,"If you have been using the following medications ""on and off"" in the last 12 month, describe the recurring pattern of use of ... [marijuana / canabis]"
+currMeds,x,"Describe more precisely any current medication [condition it used for, name of the medication, time since started the treatment, regimen (dose, frequency)] or indicate none"
+pastMeds,x,"Describe past medication taken in the last 12 month (that you are not taking anymore) [condition it used for, name of the medication, time since started the treatment, regimen (dose, frequency), duration]  or indicate none"
+herbalMeds6mo,x,"Describe any Herbal/plant based or homeopathic remedies used in the last 6 months [Goal of the use of the remedy, type/ name; currently or time since past use, duration of use]"
+proB6mo,x,"Describe any pre/probiotic used in the last 6 months [Goal of the use of the complement, type/name, currently or time since past use; duration of the use]"
+birthControl,x,"If you are female and currently using a birth control medication, describe [Type of medication; name of the drug or device; active ingredient, dosage if known] or indicate ""NONE"" if not using any / if male indicate ""NA"""
+lastPeriod,c,"If you are female, indicate how many days it has been since the first day of your last period."
+regularPeriod,n,"If you are female, do you have regular periods"
+pathology10yr,x,Describe major or minor pathological events that have occurred in the last 10 years (and describe the time since it happened)
+surgeries10yr,x,Describe any injuries or major surgeries that have occurred in the last 10 years
+famHistroyDisease,nm,Do you have family history of ... (Check all that apply)
+famHistroyDiseaseDetail,x,"If previous answer is yes, please describe the type of cancer or autoimmune syndrome and the individuals affected by the diseases among your parents and brothers/sisters"
+fluVaccine_yearly,n,"Regarding your flu vaccine history, have you been vaccinated... [every year in the last five years]"
+fluVaccine_twiceInFiveYr,n,"Regarding your flu vaccine history, have you been vaccinated... [at least 2 times in the last five years]"
+fluVaccine_lastYr,n,"Regarding your flu vaccine history, have you been vaccinated... [last year]"
+fluVaccine_thisYr,n,"Regarding your flu vaccine history, have you been vaccinated... [This year]"
+fluVaccine_future,n,"Regarding your flu vaccine history, have you been vaccinated... [Not yet but planning to get the Flu shot]"
+lastFluVaccine,c,"If you have been vaccinated for the flu this season, indicate the number of days past since the vaccination (+/- 3 days)"
+lastVaccine,c,"If you have had any recent vaccination or immunization, indicate the number of days past since the vaccination (+/- 3 days)"
+vaccine_MMR,n,"Indicate if you have ever been vaccinated for  [MMR (Measles, mumps, rubella)]"
+vaccine_Tdap,n,"Indicate if you have ever been vaccinated for  [DTaP or Tdap or Td (Tetanus, diphtheria, pertussis)]"
+vaccine_VAR,n,Indicate if you have ever been vaccinated for  [VAR (Varicella)]
+vaccine_HPV,n,Indicate if you have ever been vaccinated for  [HPV (Human papillomavirus)]
+vaccine_HepA,n,Indicate if you have ever been vaccinated for  [Hep A (Hepatitis A)]
+vaccine_HepB,n,Indicate if you have ever been vaccinated for  [Hep B (Hepatitis B)]
+vaccine_MenB,n,Indicate if you have ever been vaccinated for  [MenB (Meningococcal B)]
+vaccine_MenACWY,n,"Indicate if you have ever been vaccinated for  [MenACWY (Meningococcal A, C, W, Y)]"
+vaccine_ZVL,n,Indicate if you have ever been vaccinated for  [ZVL (zoster live)]
+vaccine_RV,n,Indicate if you have ever been vaccinated for  [RV (Rotavirus)]
+vaccine_IPV,n,Indicate if you have ever been vaccinated for  [IPV (Inactivated poliovirus)]
+vaccineDetail2yr,x,Describe all vaccinations and time since vaccinations you have had in the last 2 years (initial dose and booster)
+usualSleepHr,c,How many hours do you usually sleep
+lastSleepHr,c,How many hours have you slept last night
+sleepMoreLess,o,Are you currently 
+physicalActivity,o,How often do you practice physical activity
+cardio,c,"How much of your physical activity is cardio exercise (running, cycling, rowing, swimming, elliptical walking)"
+age,c,Age
+gender,n,Sex
+weight,c,Body weight
+height,c,Height
+familyBirthPlace,nm,Describe your family background
+race,nm,Race
+ethnicity,nm,Ethnicity
+birthCountry,n,Country you were born (or unknown)
+parentBirthCountry,nm,Country your parents were born (or unknown)
+depressed,n,Have you ever been depressed for weeks at a time or been prescribed antidepressants for depression?
+distress_lackInterest,o,"Over the last 2 weeks, how often have you been bothered by any of the following problems? [Little interest or pleasure in doing things]"
+distress_depressed,o,"Over the last 2 weeks, how often have you been bothered by any of the following problems? [Feeling down, depressed, or hopeless]"
+distress_lackSleep,o,"Over the last 2 weeks, how often have you been bothered by any of the following problems? [Trouble falling or staying asleep, or sleeping too much]"
+distress_feelTired,o,"Over the last 2 weeks, how often have you been bothered by any of the following problems? [Feeling tired or having little energy]"
+distress_abnormalEating,o,"Over the last 2 weeks, how often have you been bothered by any of the following problems? [Poor appetite or overeating]"
+distress_feelFailed,o,"Over the last 2 weeks, how often have you been bothered by any of the following problems? [Feeling bad about yourself or that you are a failure or your family down.]"
+distress_distracted,o,"Over the last 2 weeks, how often have you been bothered by any of the following problems? [Trouble concentrating on things, such as reading the newspaper or watching television]"
+distress_abnormalMovingSpeaking,o,"Over the last 2 weeks, how often have you been bothered by any of the following problems? [Moving or speaking so slowly that other people could have noticed. Or the opposite-- being so fidgety or restless that you have been moving around a lot more than usual]"

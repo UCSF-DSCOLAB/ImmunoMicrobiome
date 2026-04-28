@@ -1,0 +1,57 @@
+cluster,coarse,coarse2,fine
+0,Mono/Mac,myeloid,cMo A
+1,CD4,CD4,CD4 Naive A
+2,CD4,CD4,CD4 Th2-like/Tcm
+3,Mono/Mac,myeloid,cMo B
+4,CD4,CD4,CD4 Naive B
+5,CD8,CD8,CD8 Naive A
+6,NK,NK,mNK CD94high
+7,B,B,B naive
+8,CD8,CD8,CD8 cytotoxic
+9,CD4,CD4,CD4 Naive C
+10,CD8,CD8,CD8 Naive B
+11,CD4,CD4,CD4 Th1-like/Tem
+12,MAIT,MAIT,MAIT DNAM-1low
+13,NK,NK,mNK CD94low
+14,CD4,CD4,CD4 Naive D
+15,CD4,CD4,CD4 A6 memory
+16,gdT,gdT,gdT
+17,CD8,CD8,CD8 Tem
+18,Mono/Mac,myeloid,ncMo
+19,CD4,CD4,CD4 A4B7 memory
+20,Platelets,Platelets,Unlabelled
+21,DC,myeloid,cDC2
+22,Unlabelled,Unlabelled,Unlabelled
+23,CD8,CD8,CD8 A1B1/A6B1 Tem
+24,CD4,CD4,CD4 Naive E
+25,NK,NK,mNK terminal
+26,B,B,B memory
+27,B,B,B intermediate
+28,Treg,Treg,Treg CD25high
+29,Mono/Mac,myeloid,cMo?
+30,CD8,CD8,CD8 Naive C
+31,CD4,CD4,CD4 cytotoxic
+32,NK,NK,iNK
+33,pDC,myeloid,pDC
+34,Unlabelled,Unlabelled,Unlabelled
+35,CD8,CD8,CD8 Naive D
+36,Basophil,myeloid,Basophil
+37,Unlabelled,Unlabelled,Unlabelled
+38,Unlabelled,Unlabelled,Unlabelled
+39,Unlabelled,Unlabelled,Unlabelled
+40,CD8,CD8,CD8 AEB7 memory
+41,CD4,CD4,CD4 TEMRA
+42,CD4,CD4,CD4 Th17-like/Tem
+43,Mono/Mac,myeloid,cMo C
+44,CD4,CD4,CD4 AEB7 memory
+45,Unlabelled,Unlabelled,Unlabelled
+46,Treg,Treg,Unlabelled
+47,B,B,B/T DAP12:A20
+48,B,B,B naive:platelet
+49,NK,NK,mNK?
+50,Unlabelled,Unlabelled,Unlabelled
+51,CD8,CD8,DP T?
+52,B,B,B Plasma cell
+53,CD4,CD4,CD4 recent circ
+54,DC,myeloid,cDC1
+55,MAIT,MAIT,MAIT DNAM-1high

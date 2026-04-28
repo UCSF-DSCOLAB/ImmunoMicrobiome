@@ -1,0 +1,223 @@
+﻿var,type,levels,cat_1,cat_2
+timestamp,na,NA,NA,NA
+id,na,NA,NA,NA
+diet_animal,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (1 meal per day, at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,eat
+diet_dairy,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (1 meal per day, at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,eat
+diet_spicy,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (1 meal per day, at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,eat
+diet_sweet,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (1 meal per day, at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,eat
+diet_deepfried,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (1 meal per day, at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,eat
+diet_fried,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (1 meal per day, at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,eat
+diet_peanut,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (1 meal per day, at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,eat
+diet_nut,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (1 meal per day, at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,eat
+cooking_deepfry,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,cooking
+cooking_panfry,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,cooking
+cooking_boil,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,cooking
+cooking_roast,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,cooking
+cooking_grill,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,cooking
+vegPrep_cooked,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,veg
+vegPrep_raw,o,"Never::Rarely (less than 1 meal per week)::Occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,veg
+vegProp,c,,diet,veg
+veg_green,o,"Never::Rarely (less than 1 meal per week)::occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,veg
+veg_cruci,o,"Never::Rarely (less than 1 meal per week)::occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,veg
+veg_marrow,o,"Never::Rarely (less than 1 meal per week)::occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,veg
+veg_root,o,"Never::Rarely (less than 1 meal per week)::occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,veg
+veg_stem,o,"Never::Rarely (less than 1 meal per week)::occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,veg
+veg_allium,o,"Never::Rarely (less than 1 meal per week)::occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,veg
+veg_starch,o,"Never::Rarely (less than 1 meal per week)::occasionally (1or 2 meals per week)::Almost every day (at least 4 times/week)::At least 1 meal, every day::Several meals /day, every day::Every meals, every day",diet,veg
+drink_soda,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/ week)::Every day,diet,drink
+drink_dietSoda,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/ week)::Every day,diet,drink
+drink_cafFreeSoda,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/ week)::Every day,diet,drink
+drink_coffee,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/ week)::Every day,diet,drink
+drink_tea,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/ week)::Every day,diet,drink
+drink_alcohol,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/ week)::Every day,diet,drink
+drink_milk,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/ week)::Every day,diet,drink
+drinkVol_soda,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter (1000 ml / 34 0z)::2 liters ( 2000 ml / 68 Oz) or more,diet,drink
+drinkVol_dietSoda,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter (1000 ml / 34 0z)::2 liters ( 2000 ml / 68 Oz) or more,diet,drink
+drinkVol_cafFreeSoda,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter (1000 ml / 34 0z)::2 liters ( 2000 ml / 68 Oz) or more,diet,drink
+drinkVol_coffee,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter (1000 ml / 34 0z)::2 liters ( 2000 ml / 68 Oz) or more,diet,drink
+drinkVol_tea,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter (1000 ml / 34 0z)::2 liters ( 2000 ml / 68 Oz) or more,diet,drink
+drinkVol_alcohol,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter (1000 ml / 34 0z)::2 liters ( 2000 ml / 68 Oz) or more,diet,drink
+drinkVol_milk,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter (1000 ml / 34 0z)::2 liters ( 2000 ml / 68 Oz) or more,diet,drink
+alcohol_wine,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcohol_beer,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcohol_other,o,Never::Rarely (once or twice / month)::Occasionally (once or twice / week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholVol_wine,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter / 4 cups (1000 ml / 34 0z)::2 liters( 2000 ml / 68 Oz) or more,diet,alcohol
+alcoholVol_beer,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter / 4 cups (1000 ml / 34 0z)::2 liters( 2000 ml / 68 Oz) or more,diet,alcohol
+alcoholVol_other,o,0::Less than a cup::1 cup (250 ml / 8.45 Oz)::1 can / mug (350  ml / 11.83 Oz)::1 pint (500 ml / 17 Oz)::1 medium size  bottle (0.590 ml / 20 Oz)::2 pints / 1 liter / 4 cups (1000 ml / 34 0z)::2 liters( 2000 ml / 68 Oz) or more,diet,alcohol
+alcoholProB_yogurt,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholProB_kombucha,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholProB_kefir,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholProB_kimchi,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholProB_miso,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholProB_tempeh,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholProB_beer,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholProB_cheese,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholProB_probiotic,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholProB_other,o,Never::Rarely (once or twice a month)::Occasionally (once or twice a week)::Almost every day (at least 4 times/week)::Every day,diet,alcohol
+alcoholOther,x,,diet,alcohol
+freshFood,o,Most of what I eat::Half of what I eat::Less than half of what I eat::Almost nothing I eat::Nothing I eat,diet,eat
+water_tap,o,0%::~25%::~50%::~75%::100%,diet,drink
+water_processed,o,0%::~25%::~50%::~75%::100%,diet,drink
+water_bottle,o,0%::~25%::~50%::~75%::100%,diet,drink
+water_sparkling,o,0%::~25%::~50%::~75%::100%,diet,drink
+homemade_breakfast,o,Never::Occasionally (1 to 2 meals / week)::Frequently (2 to 4 meals / week)::Daily (except for occasions)::All meals (no exception)::I skip this meal,diet,eat
+homemade_lunch,o,Never::Occasionally (1 to 2 meals / week)::Frequently (2 to 4 meals / week)::Daily (except for occasions)::All meals (no exception)::I skip this meal,diet,eat
+homemade_dinner,o,Never::Occasionally (1 to 2 meals / week)::Frequently (2 to 4 meals / week)::Daily (except for occasions)::All meals (no exception)::I skip this meal,diet,eat
+snack_fruits,o,Never::Occasionally (1 or 2 times / week)::Frequently (2 to 4times / week)::Everyday (except for rare occasions)::Several times / day,diet,eat
+snack_sweet,o,Never::Occasionally (1 or 2 times / week)::Frequently (2 to 4times / week)::Everyday (except for rare occasions)::Several times / day,diet,eat
+snack_savoury,o,Never::Occasionally (1 or 2 times / week)::Frequently (2 to 4times / week)::Everyday (except for rare occasions)::Several times / day,diet,eat
+snack_veg,o,Never::Occasionally (1 or 2 times / week)::Frequently (2 to 4times / week)::Everyday (except for rare occasions)::Several times / day,diet,eat
+commercial,o,Less than half of what I eat::Half of what I eat::More than half of what I eat::Almost everything I eat::Everything I eat,diet,eat
+commercialContent,nm,"I don't care about labels::Pasture raised::Organic::Grass fed::Free range::Vegan::""Natural""::Non-GMO::Antibiotic free::Cruelty free::None of these labels",diet,eat
+mealChoice,nm,"regular american food / fast food / to-go meals::rich in carb (pasta & noodles, rice, sweet potatoes, Corn, Quinoa, Oats ) [at least 60% in mass of most meals are made of carbohydrates]::vegetable based [at least 60% in mass of most meals are made of vegetables]::vegetarian (no meat but animal derived products eggs, dairy, honey...)::vegan (no animal products or animal derived products)::rich in proteins (meat and other forms of proteins)::comfort food::none of the above",diet,eat
+dietPlan,n,No specific/standardized diet plan::Standard american diet/ western pattern diet::Vegetarian diet::Vegan diet::Ketogenic diet::High-fat diet::Low-carbohydrate diet::Mediterranean diet::Paleo diet::Raw food diet,diet,eat
+foodVendor,nm,"Local farmers / Farmers market::Community based/coop grocery store featuring local product ( e.g. Rainbow Grocery)::Neigborhood grocery store (e.g. Trader Joe's / Whole Foods)::Supermarket (e.g. Safeway )::Wholesale supermarket (e.g. Costco)::Directly from specialized store (e.g. bakery/butcher/fisher)::Work cafeteria, restaurant arround work or home::Fast food arround work or home",diet,eat
+skipMeal,nm,Breakfast::Lunch::Diner::None,diet,eat
+brushTeeth,o,Less than once daily::Once daily::At least once daily::Twice daily::More than twice daily::After absolutelly every meal,oral.care,oral.care
+toothpaste,nm,"free of chemicals suspected to be harmful (like triclosan/parabens)::hypoallergenic::natural::contining Fluoride::fluoride free::scent-free::sensitive::No specific label, I use regular toothpaste::none of the above",oral.care,oral.care
+oral_mouthwash,o,Never::Occasionally (once a week)::Frequently (at least 3 times a week)::Once daily::Several times daily,oral.care,oral.care
+oral_chewgum,o,Never::Occasionally (once a week)::Frequently (at least 3 times a week)::Once daily::Several times daily,oral.care,oral.care
+oral_freshner,o,Never::Occasionally (once a week)::Frequently (at least 3 times a week)::Once daily::Several times daily,oral.care,oral.care
+oral_floss,o,Never::Occasionally (once a week)::Frequently (at least 3 times a week)::Once daily::Several times daily,oral.care,oral.care
+oral_interdental,o,Never::Occasionally (once a week)::Frequently (at least 3 times a week)::Once daily::Several times daily,oral.care,oral.care
+oralDisease,nm,periodontal disease::decay/cavities::sensitive teeth::gingivitis::toothache::none of the above,oral.care,oral.care
+bodyLotion,nm,face::body::specific dry body regions::none of the above,body.care,body.care
+shower,o,Less than once daily::Once daily::At least once daily::At least twice daily,body.care,body.care
+bodyProduct,nm,scent-free::free of chemicals suspected to be harmful (Triclosan/parabens)::hypoallergenic::natural::none of the above,body.care,body.care
+laundrySoap,nm,scent-free::free of chemicals suspected to be harmful (Triclosan/parabens)::hypoallergenic::natural::none of the above,body.care,body.care
+bodyProductOther,x,,body.care,body.care
+swim,o,Never::Occasionally (less than once a week)::Regularly (once or twice a week)::Often (at least twice a week)::Frequently (at least 3 times a weak),body.care,body.care
+expoPet_toddler,nm,Dogs::Cats::Farm animals (including horses)::Rodents::None,exposure,pet
+expoPet_growingup,nm,Dogs::Cats::Farm animals (including horses)::Rodents::None,exposure,pet
+expoPet_currently,nm,Dogs::Cats::Farm animals (including horses)::Rodents::None,exposure,pet
+smoke_cigarette,o,Never::For less than 2 years::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smoke_secondhandCigarette,o,Never::For less than 2 years::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smoke_cigar,o,Never::For less than 2 years::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smoke_pipe,o,Never::For less than 2 years::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smoke_eCigarette,o,Never::For less than 2 years::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smoke_marijuana,o,Never::For less than 2 years::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smoke_other,o,Never::For less than 2 years::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smokeFree_cigarette,o,I never started::Recently::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smokeFree_secondhandCigarette,o,I never started::Recently::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smokeFree_cigar,o,I never started::Recently::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smokeFree_pipe,o,I never started::Recently::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smokeFree_eCigarette,o,I never started::Recently::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smokeFree_marijuana,o,I never started::Recently::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+smokeFree_other,o,I never started::Recently::For more than 2 years::For more than 5 years::For at least 10 years::For at least 20 years,exposure,smoke
+nCigarette,c,,exposure,smoke
+countriesChild,x,,exposure,dweling
+countriesFirst2yr,x,,exposure,dweling
+countriesAdult5yr,x,,exposure,dweling
+inUSAFor,c,,exposure,dweling
+countriesEver,x,,exposure,dweling
+countriesLast12mo,x,,exposure,dweling
+stoolCurr,o,1::2::3::4::5::6::7,stool,stool
+stoolUsual,o,1::2::3::4::5::6::7,stool,stool
+diarrhea,o,Never::Rarely (less than 1 a month)::Occasionally (1 to 3 times /month)::Once a week::Several times per week::Most of the time,stool,stool
+diarrheaCause,nm,Alcohol::Spicy food::Stress::Menstruation::Lack of sleep::None of the above,stool,stool
+healthy,nm,"You are currently healthy (no symptoms of illness and no chronic disease)::You have never been diagnosed positive for HIV, HBV or HCV or Ebola::You haven't been recently exposed to/at a risk of contamination by HIV, HBV or HCV or Ebola",health,health
+autoImmune,x,,health,health
+metabDisease,nm,type 1 diabetes::type 2 diabetes::metabolic syndrome::abnormal cholesterol or triglyceride level::none of the above,health,health
+allergy,x,,health,health
+skinRash,x,,health,health
+viralDisease,x,,health,health
+commonProb_cold,o,several times a year::once a year::less than once a year::rarely (less than every 2 years)::can't remember any sickness event in the last 5 years,health,health
+commonProb_flu,o,several times a year::once a year::less than once a year::rarely (less than every 2 years)::can't remember any sickness event in the last 5 years,health,health
+commonProb_urinary,o,several times a year::once a year::less than once a year::rarely (less than every 2 years)::can't remember any sickness event in the last 5 years,health,health
+medPast_antiInflam,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_corticosteroids,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_allergyMed,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_immSupressive,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_antibiotics,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_ironSuppl,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_vitamineSuppl,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_painKiller,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_antidepressantSSRI,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_antidepressantOther,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_birthControl,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_prediabetesMed,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_PPI,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_antiviral,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medPast_marijuana,o,less than 12h ago::Less than 24h ago::Less than 48h ago::Less than a week ago::Less than a month ago::Less than 6 months ago::Less than 2 years ago::Less than 10 years ago::More than 10 years ago::Never,health,meds
+medCurr_antiInflam,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_corticosteroids,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_allergyMed,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_immSupressive,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_antibiotics,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_ironSuppl,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_vitamineSuppl,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_painKiller,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_antidepressantSSRI,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_antidepressantOther,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_birthControl,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_prediabetesMed,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_PPI,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_antiviral,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurr_marijuana,o,I am not currently using this medication::No more than 2 days::At least 3 days::A week::A month::Several months::More than 6 months::About a year::More than 2 years,health,meds
+medCurrPattern_antiInflam,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_corticosteroids,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_allergyMed,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_immSupressive,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_antibiotics,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_ironSuppl,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_vitamineSuppl,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_painKiller,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_antidepressantSSRI,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_antidepressantOther,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_prediabetesMed,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_PPI,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_antiviral,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+medCurrPattern_marijuana,o,Once or twice a week::Once or twice a month::Every other month::Every 4 to 6 months::I haven't use this medication in the last 12 months,health,meds
+currMeds,x,,health,meds
+pastMeds,x,,health,meds
+herbalMeds6mo,x,,health,meds
+proB6mo,x,,health,meds
+birthControl,x,,health,meds
+lastPeriod,c,,health,period
+regularPeriod,n,Yes::No,health,period
+pathology10yr,x,,health,health
+surgeries10yr,x,,health,health
+famHistroyDisease,nm,Cancer::Auto-immune disease::None,health,fam.health
+famHistroyDiseaseDetail,x,,health,fam.health
+fluVaccine_yearly,n,Yes::No::Not sure,health,vaccine
+fluVaccine_twiceInFiveYr,n,Yes::No::Not sure,health,vaccine
+fluVaccine_lastYr,n,Yes::No::Not sure,health,vaccine
+fluVaccine_thisYr,n,Yes::No::Not sure,health,vaccine
+fluVaccine_future,n,Yes::No::Not sure,health,vaccine
+lastFluVaccine,c,,health,vaccine
+lastVaccine,c,,health,vaccine
+vaccine_MMR,n,Yes::No::Not sure,health,vaccine
+vaccine_Tdap,n,Yes::No::Not sure,health,vaccine
+vaccine_VAR,n,Yes::No::Not sure,health,vaccine
+vaccine_HPV,n,Yes::No::Not sure,health,vaccine
+vaccine_HepA,n,Yes::No::Not sure,health,vaccine
+vaccine_HepB,n,Yes::No::Not sure,health,vaccine
+vaccine_MenB,n,Yes::No::Not sure,health,vaccine
+vaccine_MenACWY,n,Yes::No::Not sure,health,vaccine
+vaccine_ZVL,n,Yes::No::Not sure,health,vaccine
+vaccine_RV,n,Yes::No::Not sure,health,vaccine
+vaccine_IPV,n,Yes::No::Not sure,health,vaccine
+vaccineDetail2yr,x,,health,vaccine
+usualSleepHr,c,,health,sleep
+lastSleepHr,c,,health,sleep
+sleepMoreLess,o,sleeping as much as ussual::sleeping less than usual::sleeping more than usual,health,sleep
+physicalActivity,o,Never::Occasionally (less than once a week)::Regularly (once to twice a week)::Often (at least twice a week)::Frequently (at least 3 times a weak),physical,physical
+cardio,c,,physical,physical
+age,c,,demographic,demographic
+gender,n,Male::Female,demographic,demographic
+weight,c,,demographic,demographic
+height,c,,demographic,demographic
+familyBirthPlace,nm,2 parents born in the USA::2 parents born outside the USA::1 parent born outside the USA::All grandparents born in the USA::1 grandparent born outside the USA::At least 2 grandparents born outside the USA::Unknown / adopted,demographic,demographic
+race,nm,Asian::White::M_A/W::M_NA/W::M_B/W::Black::Native American,demographic,demographic
+ethnicity,nm,non-hispanic::hispanic,demographic,demographic
+birthCountry,n,,demographic,demographic
+parentBirthCountry,nm,,demographic,demographic
+depressed,n,Yes::No,mood,mood
+distress_lackInterest,o,Not at all::Several days::More than half the days::Nearly every day,mood,mood
+distress_depressed,o,Not at all::Several days::More than half the days::Nearly every day,mood,mood
+distress_lackSleep,o,Not at all::Several days::More than half the days::Nearly every day,mood,mood
+distress_feelTired,o,Not at all::Several days::More than half the days::Nearly every day,mood,mood
+distress_abnormalEating,o,Not at all::Several days::More than half the days::Nearly every day,mood,mood
+distress_feelFailed,o,Not at all::Several days::More than half the days::Nearly every day,mood,mood
+distress_distracted,o,Not at all::Several days::More than half the days::Nearly every day,mood,mood
+distress_abnormalMovingSpeaking,o,Not at all::Several days::More than half the days::Nearly every day,mood,mood
