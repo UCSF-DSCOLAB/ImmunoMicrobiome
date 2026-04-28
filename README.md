@@ -32,4 +32,5 @@ src/ (Data analysis code)
 
 ### Disclaimer
 This open source software comes as is with absolutely no warranty.
+
 NOTE: HS99 and HS109 correspond to the same participant; measurements associated with the identifier HS109 were used for this participant.
